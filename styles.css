@@ -163,3 +163,11 @@ tr.click:hover td{background:var(--soft)}
 
 @media (max-width:520px){.box{width:27px;height:27px}h1{font-size:1.7rem}.m-head,.m-body,.m-foot{padding-inline:14px}}
 @media (prefers-reduced-motion:no-preference){.tab,.box,.btn{transition:background .12s,color .12s,border-color .12s}}
+
+/* directo */
+.live-pill{background:var(--bad-soft);color:var(--bad)}
+.live-pill::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor;margin-right:5px;vertical-align:1px}
+@media (prefers-reduced-motion:no-preference){.live-pill::before{animation:latido 1.4s ease-in-out infinite}}
+@keyframes latido{50%{opacity:.25}}
+.box.res.live{background:var(--bad-soft);border:1.5px dashed var(--bad);color:var(--bad)}
+.marcador{font-family:var(--display);font-size:1.15rem;letter-spacing:.02em}

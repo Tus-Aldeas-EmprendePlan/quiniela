@@ -181,6 +181,7 @@ async function entrar() {
     if (!S.yo && !DEMO) { S.fase = "login"; S.loginErr = "Tu usuario no está asociado a ningún jugador de la peña. Avisa a Choncha."; await API.logout(); render(); return; }
     S.fase = "app"; render();
     API.suscribir(() => programarRecarga());
+    iniciarDirecto();
     autoEscrutinio();
   } catch (e) { S.fase = "login"; S.loginErr = "No se pudieron cargar los datos. Comprueba la conexión."; render(); }
 }
@@ -199,7 +200,7 @@ async function cargarJornadas() {
     const docs = await Promise.all(lista.map(j => fetch(`data/${j.id}.json`, { cache: "no-cache" }).then(r => r.ok ? r.json() : null).catch(() => null)));
     const m = {}; docs.filter(Boolean).forEach(d => m[d.jornada] = d);
     S.jornadas = m;
-    if (S.fase === "app") { render(); autoEscrutinio(); }
+    if (S.fase === "app") { render(); autoEscrutinio(); actualizarDirecto(); }
   } catch (e) { }
 }
 
@@ -320,21 +321,24 @@ function vistaJornada(rows) {
 function tarjetaPronostico(J) {
   const conf = { alta: "fijo seguro", media: "favorito", baja: "abierto" };
   const res = J.resultados || [];
+  const L = J.resultados ? null : S.live[J.jornada];
   const lines = J.partidos.map((p, i) => h("div", { class: "pr" },
     h("div", { class: "n" }, i + 1),
     h("div", { class: "m" },
       h("div", null, h("b", null, p.local), " – ", h("b", null, p.visitante), h("span", { class: "muted small" }, "  " + fhora(p.hora))),
+      chipDirecto(L && L.items[i]),
       h("div", { class: "bar", "aria-hidden": "true" }, h("i", { class: "b1", style: `width:${p.p1}%` }), h("i", { class: "bx", style: `width:${p.pX}%` }), h("i", { class: "b2", style: `width:${p.p2}%` })),
       h("div", { class: "pct" }, h("span", null, "1 ", h("b", null, p.p1 + "%")), h("span", null, "X ", h("b", null, p.pX + "%")), h("span", null, "2 ", h("b", null, p.p2 + "%")))),
     h("div", { class: "stack", style: "gap:4px;align-items:flex-end" },
       h("div", { class: "signs-mini" }, SIGNS.map(x => h("span", { class: "box" + (p.sugerido.includes(x) ? " on" : "") + (res[i] === x && p.sugerido.includes(x) ? " hit" : "") }, x)),
-        res[i] ? [h("span", { class: "sep" }), h("span", { class: "box res on", title: "Resultado" }, res[i])] : null),
+        res[i] ? [h("span", { class: "sep" }), h("span", { class: "box res on", title: "Resultado" }, res[i])]
+          : (L && L.items[i] && L.items[i].signo) ? [h("span", { class: "sep" }), h("span", { class: "box res live", title: "Resultado provisional" }, L.items[i].signo)] : null),
       h("span", { class: "pill cf-" + p.confianza }, conf[p.confianza] || p.confianza)),
     h("div", { class: "sub" }, p.nota, p.publico ? " Apuestas de la gente: " + p.publico + "." : "")));
   const pl = J.pleno, plr = J.plenoRes;
   lines.push(h("div", { class: "pr p15" },
     h("div", { class: "n" }, "15"),
-    h("div", { class: "m" }, h("div", null, h("b", null, pl.local), " – ", h("b", null, pl.visitante), h("span", { class: "muted small" }, "  " + fhora(pl.hora))), h("span", { class: "label" }, "Pleno al 15")),
+    h("div", { class: "m" }, h("div", null, h("b", null, pl.local), " – ", h("b", null, pl.visitante), h("span", { class: "muted small" }, "  " + fhora(pl.hora))), chipDirecto(L && L.pleno), h("span", { class: "label" }, "Pleno al 15")),
     h("div", { class: "signs-mini" }, h("span", { class: "box on" }, pl.l), h("span", { class: "box on" }, pl.v), plr ? [h("span", { class: "sep" }), h("span", { class: "box res on" }, plr.l), h("span", { class: "box res on" }, plr.v)] : null),
     h("div", { class: "sub" }, pl.nota)));
   return h("section", { class: "card stack" },
@@ -344,6 +348,7 @@ function tarjetaPronostico(J) {
     h("p", { class: "small" }, J.resumen),
     h("p", { class: "small muted" }, "Cada barra reparte la probabilidad del 1 (verde), la X (gris) y el 2 (azul). Las casillas negras son el boleto propuesto."),
     J.premios ? h("div", { class: "note good small" }, "Premios oficiales por columna: ", ["15", "14", "13", "12", "11", "10"].filter(k => J.premios[k] != null).map(k => `${k === "15" ? "14+P" : k}: ${eur(J.premios[k])}`).join(" · ")) : null,
+    L ? avisoDirecto(L) : null,
     h("div", null, lines),
     J.fuentes ? h("div", { class: "small muted" }, "Datos: ", J.fuentes.map((u, i) => [i ? " · " : "", h("a", { href: u, target: "_blank", rel: "noopener", style: "color:inherit" }, new URL(u).hostname.replace("www.", ""))])) : null);
 }
@@ -362,7 +367,11 @@ function crearQuiniela() {
   abrirQuiniela(row, true);
 }
 
-function boletoVista(r) {
+function boletoVista(r0) {
+  const L = S.live[r0.jornada];
+  const oficial = (r0.resultados || []).some(Boolean);
+  const r = (!oficial && L && r0.partidos) ? { ...r0, resultados: L.items.map(x => (x && x.signo) || ""), pleno_res: L.pleno && L.pleno.goles ? L.pleno.goles : (r0.pleno_res || {}) } : r0;
+  const enDirecto = r !== r0;
   const res = r.resultados || [];
   const g = h("div", { class: "boleto" });
   r.partidos.forEach((p, i) => {
@@ -371,16 +380,17 @@ function boletoVista(r) {
       h("div", { class: "b-n" }, i + 1),
       h("div", { class: "b-teams" }, h("span", null, p.local || "—"), h("span", null, p.visitante || "—")),
       h("div", { class: "b-signs" }, SIGNS.map(x => h("span", { class: "box" + (s.includes(x) ? " on" : "") + (res[i] === x && s.includes(x) ? " hit" : "") }, x)),
-        h("span", { class: "sep" }), h("span", { class: "box res" + (res[i] ? " on" : ""), title: "Resultado" }, res[i] || "·"))));
+        h("span", { class: "sep" }), h("span", { class: "box res" + (res[i] ? (enDirecto ? " live" : " on") : ""), title: enDirecto ? "Resultado provisional" : "Resultado" }, res[i] || "·"))));
   });
   const pl = r.pleno || {}, pr = r.pleno_res || {};
   g.append(h("div", { class: "b-row p15" }, h("div", { class: "b-n" }, "15"),
     h("div", { class: "b-teams" }, h("span", null, pl.local || "—"), h("span", null, pl.visitante || "—")),
     h("div", { class: "b-signs" }, h("span", { class: "box on" }, pl.l || "·"), h("span", { class: "box on" }, pl.v || "·"), h("span", { class: "sep" }),
-      h("span", { class: "box res" + (pr.l ? " on" : "") }, pr.l || "·"), h("span", { class: "box res" + (pr.v ? " on" : "") }, pr.v || "·"))));
+      h("span", { class: "box res" + (pr.l ? (enDirecto ? " live" : " on") : "") }, pr.l || "·"), h("span", { class: "box res" + (pr.v ? (enDirecto ? " live" : " on") : "") }, pr.v || "·"))));
   const e = escrutar(r);
   return h("div", { class: "stack" }, g, e && e.n ? h("div", { class: "counter" },
-    h("span", null, "Resultados ", h("b", null, `${e.n}/14`)), h("span", null, "Mejor columna ", h("b", { class: "ok" }, e.total === 15 ? "14 + pleno" : e.best)),
+    enDirecto ? h("span", { class: "pill live-pill" }, "En directo") : null,
+    h("span", null, enDirecto ? "Con marcador " : "Resultados ", h("b", null, `${e.n}/14`)), h("span", null, enDirecto ? "Si acabara ahora, mejor columna " : "Mejor columna ", h("b", { class: "ok" }, e.total === 15 ? "14 + pleno" : e.best)),
     h("span", { class: "muted" }, Object.keys(e.dist).sort((a, b) => b - a).filter(k => k >= 10).map(k => `${e.dist[k]}×${k}`).join(" · "))) : null);
 }
 
@@ -741,6 +751,100 @@ function abrirAyuda() {
     sec("Lo que nadie puede hacer",
       "Todos veis todas las quinielas, pero cada uno solo puede modificar las suyas.")));
 }
+
+/* ---------- marcadores en directo (ESPN, sin clave) ----------
+   Durante la jornada, cada minuto se piden los marcadores de LaLiga, Segunda y Liga F.
+   Son provisionales: el escrutinio y el premio siguen saliendo de los resultados oficiales. */
+S.live = {}; S.liveErr = null;
+const LIGAS_H = ["esp.1", "esp.2", "esp.copa_del_rey"], LIGAS_F = ["esp.w.1", "esp.copa_de_la_reina"];
+const STOP = new Set(["fc", "cf", "cd", "ud", "sd", "rcd", "rc", "sad", "club", "de", "del", "la", "el", "the", "f", "femenino", "women", "fem", "w"]);
+const ALIAS = { "at": "atletico", "atl": "atletico", "atletico": "atletico", "athletic": "athletic bilbao", "r": "", "celta": "celta vigo", "betis": "real betis", "sociedad": "real sociedad", "oviedo": "real oviedo", "espanyol": "espanyol", "alaves": "alaves", "coruna": "deportivo", "lacoruna": "deportivo" };
+function tokens(s) {
+  const t = String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\(f\)/g, " ").replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(Boolean);
+  const out = [];
+  for (const w of t) { if (STOP.has(w)) continue; const a = ALIAS[w]; if (a === "") continue; (a || w).split(" ").forEach(x => out.push(x)); }
+  return new Set(out);
+}
+function parecido(a, b) {
+  const A = tokens(a), B = tokens(b); if (!A.size || !B.size) return 0;
+  let inter = 0; A.forEach(x => { if (B.has(x)) inter++; });
+  return inter / Math.min(A.size, B.size) * 0.7 + inter / new Set([...A, ...B]).size * 0.3;
+}
+const esFem = p => /\(F\)/i.test(p.local + p.visitante);
+const ymd = d => d.getFullYear() + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0");
+const horaDe = s => s ? new Date(String(s).replace(" ", "T") + ":00") : null;
+function ventanaDirecto(J) {
+  const hs = [...J.partidos.map(p => p.hora), J.pleno && J.pleno.hora].map(horaDe).filter(d => d && !isNaN(d));
+  if (!hs.length) return null;
+  return { desde: new Date(Math.min(...hs) - 15 * 60e3), hasta: new Date(Math.max(...hs) + 150 * 60e3), dias: [...new Set(hs.map(ymd))] };
+}
+function leerEvento(ev) {
+  const c = (ev.competitions || [])[0] || {}; const cs = c.competitors || [];
+  const home = cs.find(x => x.homeAway === "home") || cs[0], away = cs.find(x => x.homeAway === "away") || cs[1];
+  if (!home || !away) return null;
+  const st = (ev.status || c.status || {}); const ty = st.type || {};
+  const nombre = t => [t.displayName, t.shortDisplayName, t.name, t.location].filter(Boolean).join(" ");
+  return { id: String(ev.id), home: nombre(home.team || {}), away: nombre(away.team || {}), gh: parseInt(home.score), ga: parseInt(away.score),
+    estado: ty.state || "pre", detalle: ty.shortDetail || ty.detail || st.displayClock || "", fecha: ev.date };
+}
+function itemDe(ev) {
+  if (!ev) return null;
+  const jugando = ev.estado === "in" || ev.estado === "post";
+  const ok = jugando && !isNaN(ev.gh) && !isNaN(ev.ga);
+  const g = n => n >= 3 ? "M" : String(n);
+  return { estado: ev.estado, detalle: ev.detalle, marcador: ok ? `${ev.gh}-${ev.ga}` : "", signo: ok ? (ev.gh > ev.ga ? "1" : ev.gh === ev.ga ? "X" : "2") : "", goles: ok ? { l: g(ev.gh), v: g(ev.ga) } : null };
+}
+async function pedirLiga(liga, dia) {
+  const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/${liga}/scoreboard?dates=${dia}`, { cache: "no-store" });
+  if (!r.ok) throw new Error("http " + r.status);
+  const d = await r.json(); return (d.events || []).map(leerEvento).filter(Boolean);
+}
+function emparejar(p, eventos) {
+  if (p.espn) return eventos.find(e => e.id === String(p.espn)) || null;
+  let best = null, bs = 0;
+  for (const e of eventos) { const sc = parecido(p.local, e.home) + parecido(p.visitante, e.away); if (sc > bs) { bs = sc; best = e; } }
+  return bs >= 0.9 ? best : null;
+}
+let tDirecto = null, pidiendo = false;
+async function actualizarDirecto() {
+  if (pidiendo || S.fase !== "app" || document.visibilityState !== "visible") return;
+  const ahora = new Date();
+  const activas = Object.values(S.jornadas).filter(J => !J.resultados && J.partidos).map(J => ({ J, v: ventanaDirecto(J) })).filter(x => x.v && ahora >= x.v.desde && ahora <= x.v.hasta);
+  if (!activas.length) return;
+  pidiendo = true;
+  try {
+    for (const { J, v } of activas) {
+      const todos = [...J.partidos, J.pleno];
+      const ligas = new Set(); todos.forEach(p => (esFem(p) ? LIGAS_F : LIGAS_H).forEach(l => ligas.add(l)));
+      const pet = []; ligas.forEach(l => v.dias.forEach(d => pet.push(pedirLiga(l, d).catch(() => null))));
+      const resps = await Promise.all(pet);
+      if (resps.every(x => x === null)) throw new Error("sin respuesta");
+      const evs = resps.flat().filter(Boolean);
+      const items = J.partidos.map(p => itemDe(emparejar(p, evs)));
+      S.live[J.jornada] = { items, pleno: itemDe(emparejar(J.pleno, evs)), at: new Date(), encontrados: items.filter(Boolean).length };
+    }
+    S.liveErr = null;
+  } catch (e) { S.liveErr = new Date(); }
+  finally { pidiendo = false; renderSuave(); }
+}
+function renderSuave() {
+  const a = document.activeElement;
+  if (a && /INPUT|SELECT|TEXTAREA/.test(a.tagName) && document.getElementById("app").contains(a)) { a.addEventListener("blur", () => render(), { once: true }); return; }
+  if (S.fase === "app") render();
+}
+function chipDirecto(it) {
+  if (!it || it.estado === "pre") return null;
+  const fin = it.estado === "post";
+  return h("div", { class: "row", style: "gap:6px" }, h("span", { class: "pill " + (fin ? "st-sellada" : "live-pill") }, fin ? "Final" : "En directo"),
+    h("b", { class: "marcador" }, it.marcador), fin ? null : h("span", { class: "muted small" }, it.detalle));
+}
+function avisoDirecto(L) {
+  const hh = L.at.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+  return h("p", { class: "small muted" }, `Marcadores en directo actualizados a las ${hh}. Son provisionales; el escrutinio se hace con los resultados oficiales.`,
+    L.encontrados < NPART ? ` (${NPART - L.encontrados} partidos sin marcador todavía).` : "");
+}
+function iniciarDirecto() { clearInterval(tDirecto); tDirecto = setInterval(actualizarDirecto, 60e3); actualizarDirecto(); }
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") actualizarDirecto(); });
 
 /* ---------- inicio ---------- */
 if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => { });
