@@ -424,13 +424,13 @@ function boletoVista(r0) {
     const s = normSigns(p.signos);
     g.append(h("div", { class: "b-row" + (s.length === 2 ? " dbl" : "") },
       h("div", { class: "b-n" }, i + 1),
-      h("div", { class: "b-teams" }, h("span", null, p.local || "—"), h("span", null, p.visitante || "—")),
+      h("div", { class: "b-teams" }, h("span", null, p.local || "—"), h("span", null, p.visitante || "—"), enDirecto ? estadoMini(L.items[i]) : null),
       h("div", { class: "b-signs" }, SIGNS.map(x => h("span", { class: "box" + (s.includes(x) ? " on" : "") + (res[i] === x && s.includes(x) ? " hit" : "") }, x)),
         h("span", { class: "sep" }), h("span", { class: "box res" + (res[i] ? (enDirecto ? (s.includes(res[i]) ? " live ok" : " live ko") : " on") : ""), title: enDirecto ? "Resultado provisional" : "Resultado" }, res[i] || "·"))));
   });
   const pl = r.pleno || {}, pr = r.pleno_res || {};
   g.append(h("div", { class: "b-row p15" }, h("div", { class: "b-n" }, "15"),
-    h("div", { class: "b-teams" }, h("span", null, pl.local || "—"), h("span", null, pl.visitante || "—")),
+    h("div", { class: "b-teams" }, h("span", null, pl.local || "—"), h("span", null, pl.visitante || "—"), enDirecto ? estadoMini(L.pleno) : null),
     h("div", { class: "b-signs" }, h("span", { class: "box on" }, pl.l || "·"), h("span", { class: "box on" }, pl.v || "·"), h("span", { class: "sep" }),
       h("span", { class: "box res" + (pr.l ? (enDirecto ? (pr.l === pl.l ? " live ok" : " live ko") : " on") : "") }, pr.l || "·"), h("span", { class: "box res" + (pr.v ? (enDirecto ? (pr.v === pl.v ? " live ok" : " live ko") : " on") : "") }, pr.v || "·"))));
   const e = escrutar(r);
@@ -868,8 +868,12 @@ async function pedirLiga(liga, dia) {
 function emparejar(p, eventos) {
   if (p.espn) return eventos.find(e => e.id === String(p.espn)) || null;
   let best = null, bs = 0;
-  for (const e of eventos) { const sc = parecido(p.local, e.home) + parecido(p.visitante, e.away); if (sc > bs) { bs = sc; best = e; } }
-  return bs >= 0.9 ? best : null;
+  for (const e of eventos) {
+    const a = parecido(p.local, e.home), b = parecido(p.visitante, e.away);
+    if (a < 0.45 || b < 0.45) continue;
+    if (a + b > bs) { bs = a + b; best = e; }
+  }
+  return best;
 }
 let tDirecto = null, pidiendo = false;
 async function actualizarDirecto() {
@@ -897,6 +901,11 @@ function renderSuave() {
   const a = document.activeElement;
   if (a && /INPUT|SELECT|TEXTAREA/.test(a.tagName) && document.getElementById("app").contains(a)) { a.addEventListener("blur", () => render(), { once: true }); return; }
   if (S.fase === "app") render();
+}
+function estadoMini(it) {
+  if (!it || it.estado === "pre") return null;
+  const fin = it.estado === "post";
+  return h("span", { class: "estado-mini " + (fin ? "fin" : "vivo") }, fin ? `Final ${it.marcador}` : `En directo ${it.marcador}${it.detalle ? " · " + it.detalle : ""}`);
 }
 function chipDirecto(it) {
   if (!it || it.estado === "pre") return null;

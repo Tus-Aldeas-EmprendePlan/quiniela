@@ -173,3 +173,6 @@ tr.click:hover td{background:var(--soft)}
 .box.res.live.ok{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
 .box.res.live.ko{background:var(--bad-soft);border-color:var(--bad);color:var(--bad)}
 .marcador{font-family:var(--display);font-size:1.15rem;letter-spacing:.02em}
+.estado-mini{font-size:.72rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;margin-top:2px}
+.estado-mini.vivo{color:var(--bad)}
+.estado-mini.fin{color:var(--muted)}
