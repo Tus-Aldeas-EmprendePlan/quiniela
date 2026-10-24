@@ -128,7 +128,7 @@ tr.click:hover td{background:var(--soft)}
 .cols th{font-size:.7rem}
 .cols td.c{background:var(--soft);border-radius:3px}
 .cols td.c.hit{background:var(--accent-soft);color:var(--accent);font-weight:700}
-.cols td.c.miss{color:var(--bad)}
+.cols td.c.miss{background:var(--bad-soft);color:var(--bad)}
 .cols tr.tot td{font-weight:700;padding-top:6px}
 
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
@@ -176,3 +176,5 @@ tr.click:hover td{background:var(--soft)}
 .estado-mini{font-size:.72rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;margin-top:2px}
 .estado-mini.vivo{color:var(--bad)}
 .estado-mini.fin{color:var(--muted)}
+.cols tr.tot td.tot-c{font-weight:700;font-size:1.05rem;padding-bottom:4px}
+.cols tr.tot td.best{background:var(--accent);color:var(--accent-ink);border-radius:3px}

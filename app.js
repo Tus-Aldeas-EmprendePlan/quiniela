@@ -42,17 +42,11 @@ function toast(msg) {
 }
 
 /* ---------- reducida de 7 dobles ----------
-   Código de Hamming (7,4): 16 columnas que cubren las 128 combinaciones de
-   los 7 dobles a distancia 1. Si los 14 resultados caen dentro del boleto,
-   al menos una columna tiene 13 aciertos (y 14 si coincide exactamente). */
-const HAMMING = (() => {
-  const out = [];
-  for (let m = 0; m < 16; m++) {
-    const d = [m & 1, (m >> 1) & 1, (m >> 2) & 1, (m >> 3) & 1];
-    out.push([d[0] ^ d[1] ^ d[3], d[0] ^ d[2] ^ d[3], d[0], d[1] ^ d[2] ^ d[3], d[1], d[2], d[3]]);
-  }
-  return out;
-})();
+   Tabla oficial de Loterías (Reducción 2ª, BOE-A-2009-12204, norma 22.ª): 16 apuestas.
+   Fila k = k-ésimo doble del boleto, de arriba abajo. "1" = primer signo del doble
+   (en el orden 1, X, 2) y "X" = segundo signo. Garantiza 13 si los 14 caen dentro. */
+const REDUCIDA_7D = ["11XXXX11XX11XX11", "11XXXX1111XX11XX", "11XX11XXXX1111XX", "11XX11XX11XXXX11",
+  "1X1XX1X11X1X1X1X", "1X1X1X1XX1X11X1X", "1X1X1X1X1X1XX1X1"];
 function columnas(q) {
   if (!q.partidos) return null;
   const sg = q.partidos.map(p => normSigns(p.signos));
@@ -60,7 +54,7 @@ function columnas(q) {
   const dobles = sg.map((s, i) => s.length === 2 ? i : -1).filter(i => i >= 0);
   const triples = sg.filter(s => s.length === 3).length;
   if (triples === 0 && dobles.length === 7)
-    return HAMMING.map(cw => sg.map((s, i) => { const k = dobles.indexOf(i); return k < 0 ? s : s[cw[k]]; }));
+    return Array.from({ length: 16 }, (_, c) => sg.map((s, i) => { const k = dobles.indexOf(i); return k < 0 ? s : s[REDUCIDA_7D[k][c] === "1" ? 0 : 1]; }));
   let cols = [[]];
   for (const s of sg) { const nx = []; for (const c of cols) for (const ch of s) nx.push([...c, ch]); cols = nx; if (cols.length > 64) return null; }
   return cols;
@@ -413,11 +407,29 @@ function crearQuiniela() {
   abrirQuiniela(row, true);
 }
 
-function boletoVista(r0) {
+function conDirecto(r0) {
   const L = S.live[r0.jornada];
   const oficial = (r0.resultados || []).some(Boolean);
   const r = (!oficial && L && r0.partidos) ? { ...r0, resultados: L.items.map(x => (x && x.signo) || ""), pleno_res: L.pleno && L.pleno.goles ? L.pleno.goles : (r0.pleno_res || {}) } : r0;
-  const enDirecto = r !== r0;
+  return { r, L, enDirecto: r !== r0 };
+}
+/* Partidos acertados dentro del boleto (aunque la combinación no esté entre las 16 columnas) */
+function partidosDentro(r) {
+  const res = r.resultados || [];
+  return r.partidos.reduce((a, p, i) => a + (res[i] && normSigns(p.signos).includes(res[i]) ? 1 : 0), 0);
+}
+function resumenEscrutinio(r, e, enDirecto) {
+  const dentro = partidosDentro(r);
+  const out = [h("div", { class: "counter" },
+    enDirecto ? h("span", { class: "pill live-pill" }, "En directo") : null,
+    h("span", null, "Con resultado ", h("b", null, `${e.n}/14`)),
+    h("span", null, "Partidos acertados ", h("b", null, dentro)),
+    h("span", null, enDirecto ? "Cuenta ahora (mejor columna) " : "Cuenta (mejor columna) ", h("b", { class: "ok" }, e.total === 15 ? "14 + pleno" : e.best)))];
+  if (dentro > e.best) out.push(h("p", { class: "small muted" }, `Has acertado ${dentro} partidos, pero en la reducida solo cuenta la mejor de las 16 columnas: ${e.best}. Con 7 dobles no se juegan las 128 combinaciones, así que a veces la combinación de dobles que ha salido no está en ninguna columna.`));
+  return out;
+}
+function boletoVista(r0) {
+  const { r, L, enDirecto } = conDirecto(r0);
   const res = r.resultados || [];
   const g = h("div", { class: "boleto" });
   r.partidos.forEach((p, i) => {
@@ -435,11 +447,14 @@ function boletoVista(r0) {
       h("span", { class: "box res" + (pr.l ? (enDirecto ? (pr.l === pl.l ? " live ok" : " live ko") : " on") : "") }, pr.l || "·"), h("span", { class: "box res" + (pr.v ? (enDirecto ? (pr.v === pl.v ? " live ok" : " live ko") : " on") : "") }, pr.v || "·"))));
   const e = escrutar(r);
   const ap = escrutinioApp(S.jornadas[r0.jornada]);
-  return h("div", { class: "stack" }, g, e && e.n ? h("div", { class: "counter" },
-    ap ? h("span", { class: "muted" }, "La app: ", h("b", null, ap.e.total === 15 ? "14+P" : ap.e.best)) : null,
-    enDirecto ? h("span", { class: "pill live-pill" }, "En directo") : null,
-    h("span", null, enDirecto ? "Con marcador " : "Resultados ", h("b", null, `${e.n}/14`)), h("span", null, enDirecto ? "Si acabara ahora, mejor columna " : "Mejor columna ", h("b", { class: "ok" }, e.total === 15 ? "14 + pleno" : e.best)),
-    h("span", { class: "muted" }, Object.keys(e.dist).sort((a, b) => b - a).filter(k => k >= 10).map(k => `${e.dist[k]}×${k}`).join(" · "))) : null);
+  if (!e || !e.n) return h("div", { class: "stack" }, g);
+  S.colsOpen = S.colsOpen || {};
+  const k = r0.id || r0.jornada, abierto = !!S.colsOpen[k];
+  return h("div", { class: "stack" }, g, ...resumenEscrutinio(r, e, enDirecto),
+    h("div", { class: "row spread" },
+      ap ? h("span", { class: "small muted" }, "El boleto de la app llevaría ", h("b", null, ap.e.total === 15 ? "14 + pleno" : ap.e.best)) : h("span"),
+      h("button", { class: "link", onclick: () => { S.colsOpen[k] = !abierto; render(); } }, abierto ? "Ocultar columnas" : "Ver las 16 columnas")),
+    abierto ? tablaColumnas(r, e) : null);
 }
 
 /* ---------- ventana de una quiniela ---------- */
@@ -453,16 +468,19 @@ function pintarModal() {
   const d = M.draft; const ed = puedoEscribir(d.jugador);
   const J = S.jornadas[d.jornada];
   const editBoleto = ed && d.estado === "borrador" && !!d.partidos;
-  const editRes = ed && d.estado !== "borrador" && !!d.partidos;
+  const vista = d.partidos && d.estado !== "borrador" ? conDirecto(d) : { r: d, enDirecto: false };
+  // Los resultados solo se tocan a mano si no hay datos oficiales ni marcadores en directo
+  const editRes = ed && d.estado !== "borrador" && !!d.partidos && !(J && J.resultados) && !vista.enDirecto;
   const sg = d.partidos ? d.partidos.map(p => normSigns(p.signos)) : [];
   const nD = sg.filter(s => s.length === 2).length, nT = sg.filter(s => s.length === 3).length, nVac = sg.filter(s => !s).length;
-  const e = d.partidos ? escrutar(d) : null;
+  const e = d.partidos ? escrutar(vista.r) : null;
   if (!d.resultados) d.resultados = Array(NPART).fill("");
   if (!d.pleno_res) d.pleno_res = { l: "", v: "" };
 
   const body = h("div", { class: "m-body" });
   if (d.nota) body.append(h("div", { class: "note" }, d.nota));
   if (!ed) body.append(h("p", { class: "muted small" }, `Solo ${pname(d.jugador)} puede modificar esta quiniela.`));
+  else if (d.partidos && d.estado !== "borrador") body.append(h("p", { class: "muted small" }, "Boleto sellado: los signos ya no se pueden cambiar ni se puede borrar la quiniela."));
 
   if (d.partidos) {
     if (editBoleto) {
@@ -482,7 +500,7 @@ function pintarModal() {
     }
     const g = h("div", { class: "boleto" });
     d.partidos.forEach((p, i) => {
-      const s = normSigns(p.signos); const r = d.resultados[i]; const jp = J && J.partidos[i];
+      const s = normSigns(p.signos); const r = (vista.r.resultados || [])[i]; const jp = J && J.partidos[i];
       g.append(h("div", { class: "b-row" + (s.length === 2 ? " dbl" : "") },
         h("div", { class: "b-n" }, i + 1),
         h("div", { class: "b-teams" }, editBoleto && !J ? h("div", { class: "teams-in" },
@@ -497,7 +515,7 @@ function pintarModal() {
           }, x)),
           d.estado !== "borrador" ? [h("span", { class: "sep" }),
           h("button", {
-            class: "box res" + (r ? " on" : ""), disabled: !editRes, title: "Resultado: toca para cambiar", "aria-label": `Resultado partido ${i + 1}`,
+            class: "box res" + (r ? (vista.enDirecto ? (s.includes(r) ? " live ok" : " live ko") : " on") : ""), disabled: !editRes, title: vista.enDirecto ? "Resultado provisional" : "Resultado", "aria-label": `Resultado partido ${i + 1}`,
             onclick: () => { const cyc = ["", "1", "X", "2"]; d.resultados[i] = cyc[(cyc.indexOf(r || "") + 1) % 4]; autoAciertos(); pintarModal(); }
           }, r || "·")] : null)));
     });
@@ -512,13 +530,11 @@ function pintarModal() {
       h("div", { class: "b-signs" }, golSel(pl, "l", !editBoleto, "Goles local pleno"), golSel(pl, "v", !editBoleto, "Goles visitante pleno"),
         d.estado !== "borrador" ? [h("span", { class: "sep" }), golSel(pr, "l", !editRes, "Resultado goles local"), golSel(pr, "v", !editRes, "Resultado goles visitante")] : null)));
     body.append(g);
-    if (d.estado !== "borrador" && ed) body.append(h("p", { class: "muted small" }, "La casilla de la derecha es el resultado real. Se rellena sola cuando salen los resultados oficiales, pero también puedes tocarla para ir cambiando entre 1, X y 2."));
-    if (e) {
-      body.append(h("div", { class: "row spread" },
-        h("div", { class: "counter" }, h("span", null, "Resultados ", h("b", null, `${e.n}/14`)), h("span", null, "Mejor columna ", h("b", { class: "ok" }, e.total === 15 ? "14 + pleno" : e.best)),
-          h("span", { class: "muted" }, Object.keys(e.dist).sort((a, b) => b - a).filter(k => k >= 10).map(k => `${e.dist[k]} col. de ${k}`).join(" · "))),
-        h("button", { class: "link", onclick: () => { M.showCols = !M.showCols; pintarModal(); } }, M.showCols ? "Ocultar columnas" : `Ver las ${e.cols.length} columnas`)));
-      if (M.showCols) body.append(tablaColumnas(d, e));
+    if (editRes) body.append(h("p", { class: "muted small" }, "La casilla de la derecha es el resultado real. Se rellena sola cuando salen los resultados oficiales; mientras no los haya, puedes tocarla para ir cambiando entre 1, X y 2."));
+    if (e && e.n) {
+      body.append(...resumenEscrutinio(vista.r, e, vista.enDirecto));
+      body.append(h("div", null, h("button", { class: "link", onclick: () => { M.showCols = !M.showCols; pintarModal(); } }, M.showCols ? "Ocultar columnas" : `Ver las ${e.cols.length} columnas`)));
+      if (M.showCols) body.append(tablaColumnas(vista.r, e));
       if (J && J.premios && e.completo) body.append(h("p", { class: "small" }, `Según los premios oficiales, este boleto cobra ${eur(calcPremio(e, J.premios))}.`));
     }
   } else {
@@ -527,8 +543,8 @@ function pintarModal() {
 
   body.append(h("div", { class: "fields" },
     h("label", null, h("span", { class: "label" }, "Fecha"), h("input", { id: "m-f", type: "date", value: d.fecha || "", disabled: !ed, oninput: ev => d.fecha = ev.target.value })),
-    h("label", null, h("span", { class: "label" }, "Aciertos"), h("input", { id: "m-a", type: "number", inputmode: "numeric", min: "0", max: "15", value: d.aciertos ?? "", disabled: !ed, oninput: ev => d.aciertos = ev.target.value === "" ? null : Math.max(0, Math.min(15, parseInt(ev.target.value))) })),
-    h("label", null, h("span", { class: "label" }, "Premio cobrado (€)"), h("input", { id: "m-p", inputmode: "decimal", value: d.premio == null ? "" : String(d.premio).replace(".", ","), disabled: !ed, placeholder: "0,00", oninput: ev => d.premio = parseMoney(ev.target.value) }))));
+    h("label", null, h("span", { class: "label" }, "Aciertos"), h("input", { id: "m-a", type: "number", inputmode: "numeric", min: "0", max: "15", value: d.aciertos ?? "", disabled: !ed || !!d.partidos, oninput: ev => d.aciertos = ev.target.value === "" ? null : Math.max(0, Math.min(15, parseInt(ev.target.value))) })),
+    h("label", null, h("span", { class: "label" }, "Premio cobrado (€)"), h("input", { id: "m-p", inputmode: "decimal", value: d.premio == null ? "" : String(d.premio).replace(".", ","), disabled: !ed || !!(d.partidos && J && J.premios), placeholder: "0,00", oninput: ev => d.premio = parseMoney(ev.target.value) }))));
 
   if (d.cambios && d.cambios.length) {
     body.append(h("details", null, h("summary", { class: "small muted", style: "cursor:pointer" }, `Cambios registrados (${d.cambios.length})`),
@@ -538,7 +554,7 @@ function pintarModal() {
   if (M.err) body.append(h("div", { class: "err" }, M.err));
 
   const foot = h("div", { class: "m-foot" });
-  if (ed && !M.nueva) foot.append(M.confirmDel ? h("button", { class: "btn danger", onclick: borrar }, "Sí, eliminarla") : h("button", { class: "btn danger", onclick: () => { M.confirmDel = true; pintarModal(); } }, "Eliminar"));
+  if (ed && !M.nueva && (d.estado === "borrador" || !d.partidos)) foot.append(M.confirmDel ? h("button", { class: "btn danger", onclick: borrar }, "Sí, eliminarla") : h("button", { class: "btn danger", onclick: () => { M.confirmDel = true; pintarModal(); } }, "Eliminar"));
   foot.append(h("span", { style: "flex:1" }));
   foot.append(h("button", { class: "btn alt", onclick: cerrarModal }, ed ? "Cancelar" : "Cerrar"));
   if (ed) {
@@ -546,7 +562,6 @@ function pintarModal() {
       foot.append(h("button", { class: "btn alt", disabled: M.busy, onclick: () => guardar() }, "Guardar borrador"));
       foot.append(h("button", { class: "btn go", disabled: M.busy, onclick: sellar }, "Ya la he sellado"));
     }
-    if (d.estado === "sellada" && !d.resultados.some(Boolean)) foot.append(h("button", { class: "btn alt", disabled: M.busy, onclick: () => { d.estado = "borrador"; guardar(true); } }, "Reabrir boleto"));
     if (d.estado !== "borrador" || !d.partidos) foot.append(h("button", { class: "btn go", disabled: M.busy, onclick: () => guardar() }, "Guardar"));
   }
   const modal = h("div", { class: "modal", role: "dialog", "aria-modal": "true", "aria-label": `Jornada ${d.jornada}` },
@@ -562,9 +577,9 @@ function tablaColumnas(d, e) {
   const res = d.resultados || [];
   const t = h("table", { class: "cols" });
   t.append(h("tr", null, h("th", null, ""), e.cols.map((_, k) => h("th", null, k + 1))));
+  t.append(h("tr", { class: "tot" }, h("th", null, "Ac."), e.hits.map(x => h("td", { class: "tot-c" + (x === e.best ? " best" : "") }, x))));
   for (let i = 0; i < NPART; i++) t.append(h("tr", null, h("th", null, i + 1), e.cols.map(c => { const s = c[i]; const cls = res[i] ? (s === res[i] ? " hit" : " miss") : ""; return h("td", { class: "c" + cls }, s); })));
-  t.append(h("tr", { class: "tot" }, h("td", { class: "muted" }, "Ac."), e.hits.map(x => h("td", { class: x === e.best ? "ok" : "" }, x))));
-  return h("div", { class: "tw" }, t);
+  return h("div", { class: "stack", style: "gap:6px" }, h("p", { class: "small muted" }, "Arriba, los aciertos de cada columna (la mejor, resaltada). Verde: acierto; rojo: fallo; gris: partido sin resultado todavía."), h("div", { class: "tw" }, t));
 }
 function autoAciertos() { const d = M.draft; const e = escrutar(d); if (e && e.n) d.aciertos = e.total; }
 function pegarPartidos() {

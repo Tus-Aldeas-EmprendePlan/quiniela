@@ -98,6 +98,36 @@ drop policy if exists "borrar mis quinielas" on public.quinielas;
 create policy "borrar mis quinielas" on public.quinielas for delete to authenticated
   using (public.puedo_escribir(jugador));
 
+-- Una quiniela sellada no se puede cambiar ni borrar
+create or replace function public.proteger_sellada() returns trigger
+language plpgsql set search_path = public as $$
+begin
+  if tg_op = 'DELETE' then
+    if old.estado <> 'borrador' and old.partidos is not null then
+      raise exception 'La quiniela de la jornada % ya está sellada y no se puede borrar', old.jornada;
+    end if;
+    return old;
+  end if;
+  if old.estado <> 'borrador' and old.partidos is not null then
+    if new.partidos is distinct from old.partidos
+       or new.pleno is distinct from old.pleno
+       or new.jugador is distinct from old.jugador
+       or new.jornada is distinct from old.jornada
+       or new.temporada is distinct from old.temporada then
+      raise exception 'La quiniela de la jornada % ya está sellada: los signos no se pueden cambiar', old.jornada;
+    end if;
+    if new.estado = 'borrador' then
+      raise exception 'Una quiniela sellada no puede volver a borrador';
+    end if;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists proteger_sellada on public.quinielas;
+create trigger proteger_sellada before update or delete on public.quinielas
+  for each row execute function public.proteger_sellada();
+
+
 -- Avisar en directo a los demás cuando alguien cambia una quiniela
 do $$ begin
   alter publication supabase_realtime add table public.quinielas;
