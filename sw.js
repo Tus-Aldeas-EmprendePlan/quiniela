@@ -1,6 +1,6 @@
 // Guarda la app en el móvil para que abra rápido. Los datos siempre se piden frescos.
-const VERSION = "pena-v4";
-const SHELL = ["./", "index.html", "styles.css?v=4", "app.js?v=4", "config.js?v=4", "manifest.webmanifest", "icons/icon-192.png"];
+const VERSION = "pena-v5";
+const SHELL = ["./", "index.html", "styles.css?v=5", "app.js?v=5", "config.js?v=5", "manifest.webmanifest", "icons/icon-192.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== VERSION).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener("fetch", e => {

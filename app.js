@@ -325,6 +325,22 @@ function vistaJornada(rows) {
       : h("p", { class: "muted" }, `Cuando ${pname(t.next)} la rellene, la verás aquí. Mientras tanto puedes mirar el pronóstico.`)));
   return out.concat(pronosticoActual(t));
 }
+/* El boleto que propuso la app para una jornada, escrutado con los resultados oficiales o, si aún no hay, con los del directo */
+function escrutinioApp(J) {
+  if (!J || !J.partidos) return null;
+  const L = J.resultados ? null : S.live[J.jornada];
+  const resultados = J.resultados || (L ? L.items.map(x => (x && x.signo) || "") : null);
+  if (!resultados || !resultados.some(Boolean)) return null;
+  const q = { partidos: J.partidos.map(p => ({ signos: p.sugerido })), pleno: J.pleno, resultados, pleno_res: J.plenoRes || (L && L.pleno && L.pleno.goles) || {} };
+  const e = escrutar(q); if (!e) return null;
+  return { e, oficial: !!J.resultados, premio: J.resultados && J.premios && e.completo ? calcPremio(e, J.premios) : null };
+}
+function lineaApp(J) {
+  const a = escrutinioApp(J); if (!a) return null;
+  const ac = a.e.total === 15 ? "14 + pleno" : a.e.best;
+  return h("div", { class: "note" + (a.oficial ? " good" : "") + " small" }, h("b", null, "Boleto de la app: "),
+    a.oficial ? `${ac} aciertos` + (a.premio != null ? ` · habría cobrado ${eur(a.premio)}` : "") : `si acabara ahora, ${ac} aciertos (${a.e.n}/14 con marcador)`);
+}
 function pronosticoActual(t) {
   const jn = (t.abiertas[0] || {}).jornada;
   const J = S.jornadas[jn] || S.jornadas[t.jornada] || S.jornadas[Math.max(0, ...Object.keys(S.jornadas).map(Number))];
@@ -378,6 +394,7 @@ function tarjetaPronostico(J) {
     h("p", { class: "small muted" }, "Cada barra reparte la probabilidad del 1 (verde), la X (gris) y el 2 (azul). Las casillas negras son el boleto propuesto."),
     J.premios ? h("div", { class: "note good small" }, "Premios oficiales por columna: ", ["15", "14", "13", "12", "11", "10"].filter(k => J.premios[k] != null).map(k => `${k === "15" ? "14+P" : k}: ${eur(J.premios[k])}`).join(" · ")) : null,
     L ? avisoDirecto(L) : null,
+    lineaApp(J),
     h("div", null, lines),
     J.fuentes ? h("div", { class: "small muted" }, "Datos: ", J.fuentes.map((u, i) => [i ? " · " : "", h("a", { href: u, target: "_blank", rel: "noopener", style: "color:inherit" }, new URL(u).hostname.replace("www.", ""))])) : null);
 }
@@ -417,7 +434,9 @@ function boletoVista(r0) {
     h("div", { class: "b-signs" }, h("span", { class: "box on" }, pl.l || "·"), h("span", { class: "box on" }, pl.v || "·"), h("span", { class: "sep" }),
       h("span", { class: "box res" + (pr.l ? (enDirecto ? " live" : " on") : "") }, pr.l || "·"), h("span", { class: "box res" + (pr.v ? (enDirecto ? " live" : " on") : "") }, pr.v || "·"))));
   const e = escrutar(r);
+  const ap = escrutinioApp(S.jornadas[r0.jornada]);
   return h("div", { class: "stack" }, g, e && e.n ? h("div", { class: "counter" },
+    ap ? h("span", { class: "muted" }, "La app: ", h("b", null, ap.e.total === 15 ? "14+P" : ap.e.best)) : null,
     enDirecto ? h("span", { class: "pill live-pill" }, "En directo") : null,
     h("span", null, enDirecto ? "Con marcador " : "Resultados ", h("b", null, `${e.n}/14`)), h("span", null, enDirecto ? "Si acabara ahora, mejor columna " : "Mejor columna ", h("b", { class: "ok" }, e.total === 15 ? "14 + pleno" : e.best)),
     h("span", { class: "muted" }, Object.keys(e.dist).sort((a, b) => b - a).filter(k => k >= 10).map(k => `${e.dist[k]}×${k}`).join(" · "))) : null);
@@ -632,8 +651,26 @@ function vistaRanking(rows) {
       h("td", { class: "num" }, eur(s.invertido)), h("td", { class: "num" }, eur(s.cobrado)), h("td", { class: "num " + (s.balance >= 0 ? "ok" : "bad") }, eur(s.balance))))));
   return [kp,
     h("section", { class: "card stack" }, h("h2", null, "Clasificación"), h("p", { class: "muted small" }, "Ordenada por media de aciertos, que es justa aunque no todos hayáis jugado las mismas jornadas."), h("div", { class: "tw" }, tbl)),
+    contraLaApp(rows),
     h("section", { class: "card stack" }, h("div", { class: "row spread" }, h("h2", null, "Aciertos por jornada"), h("div", { class: "row" }, orden().map(id => playerDot(id)))), grafico(esc),
       mediaP != null ? h("span", { class: "muted small" }, `Media de la peña: ${num1(mediaP)} aciertos`) : null)];
+}
+function contraLaApp(rows) {
+  const filas = rows.filter(r => r.aciertos != null && S.jornadas[r.jornada] && S.jornadas[r.jornada].resultados).map(r => {
+    const a = escrutinioApp(S.jornadas[r.jornada]);
+    return a ? { r, app: a.e.total, appPremio: a.premio } : null;
+  }).filter(Boolean);
+  if (!filas.length) return h("section", { class: "card stack" }, h("h2", null, "Vosotros contra la app"),
+    h("p", { class: "muted small" }, "Aquí se comparará cada quiniela con el boleto que propuso la app, en cuanto haya jornadas con pronóstico y resultados oficiales."));
+  const vos = filas.reduce((a, f) => a + f.r.aciertos, 0), app = filas.reduce((a, f) => a + f.app, 0);
+  const pv = filas.reduce((a, f) => a + (f.r.premio || 0), 0), pa = filas.reduce((a, f) => a + (f.appPremio || 0), 0);
+  const gana = (x, y) => x > y ? "ok" : x < y ? "bad" : "";
+  return h("section", { class: "card stack" }, h("h2", null, "Vosotros contra la app"),
+    h("p", { class: "muted small" }, `En ${filas.length} jornada${filas.length > 1 ? "s" : ""}: vosotros ${num1(vos / filas.length)} aciertos de media y ${eur(pv)} cobrados; la app habría hecho ${num1(app / filas.length)} y ${eur(pa)}.`),
+    h("div", { class: "tw" }, h("table", null, h("thead", null, h("tr", null, h("th", null, "Jornada"), h("th", null, "Jugador"), h("th", { class: "num" }, "Aciertos"), h("th", { class: "num" }, "La app"), h("th", { class: "num" }, "Premio"), h("th", { class: "num" }, "Premio app"))),
+      h("tbody", null, filas.slice().reverse().map(f => h("tr", null, h("td", { class: "rank" }, f.r.jornada), h("td", null, playerDot(f.r.jugador)),
+        h("td", { class: "num " + gana(f.r.aciertos, f.app) }, h("b", null, f.r.aciertos)), h("td", { class: "num " + gana(f.app, f.r.aciertos) }, f.app),
+        h("td", { class: "num" }, eur(f.r.premio || 0)), h("td", { class: "num" }, f.appPremio == null ? "—" : eur(f.appPremio))))))));
 }
 function grafico(rows) {
   if (!rows.length) return h("div", { class: "empty" }, "Aún no hay jornadas escrutadas.");
