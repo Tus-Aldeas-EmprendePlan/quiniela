@@ -169,5 +169,7 @@ tr.click:hover td{background:var(--soft)}
 .live-pill::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor;margin-right:5px;vertical-align:1px}
 @media (prefers-reduced-motion:no-preference){.live-pill::before{animation:latido 1.4s ease-in-out infinite}}
 @keyframes latido{50%{opacity:.25}}
-.box.res.live{background:var(--bad-soft);border:1.5px dashed var(--bad);color:var(--bad)}
+.box.res.live{border:1.5px dashed var(--muted);color:var(--muted)}
+.box.res.live.ok{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.box.res.live.ko{background:var(--bad-soft);border-color:var(--bad);color:var(--bad)}
 .marcador{font-family:var(--display);font-size:1.15rem;letter-spacing:.02em}

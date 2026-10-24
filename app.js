@@ -377,7 +377,7 @@ function tarjetaPronostico(J) {
     h("div", { class: "stack", style: "gap:4px;align-items:flex-end" },
       h("div", { class: "signs-mini" }, SIGNS.map(x => h("span", { class: "box" + (p.sugerido.includes(x) ? " on" : "") + (res[i] === x && p.sugerido.includes(x) ? " hit" : "") }, x)),
         res[i] ? [h("span", { class: "sep" }), h("span", { class: "box res on", title: "Resultado" }, res[i])]
-          : (L && L.items[i] && L.items[i].signo) ? [h("span", { class: "sep" }), h("span", { class: "box res live", title: "Resultado provisional" }, L.items[i].signo)] : null),
+          : (L && L.items[i] && L.items[i].signo) ? [h("span", { class: "sep" }), h("span", { class: "box res live " + (p.sugerido.includes(L.items[i].signo) ? "ok" : "ko"), title: "Resultado provisional" }, L.items[i].signo)] : null),
       h("span", { class: "pill cf-" + p.confianza }, conf[p.confianza] || p.confianza)),
     h("div", { class: "sub" }, p.nota, p.publico ? " Apuestas de la gente: " + p.publico + "." : "")));
   const pl = J.pleno, plr = J.plenoRes;
@@ -426,13 +426,13 @@ function boletoVista(r0) {
       h("div", { class: "b-n" }, i + 1),
       h("div", { class: "b-teams" }, h("span", null, p.local || "—"), h("span", null, p.visitante || "—")),
       h("div", { class: "b-signs" }, SIGNS.map(x => h("span", { class: "box" + (s.includes(x) ? " on" : "") + (res[i] === x && s.includes(x) ? " hit" : "") }, x)),
-        h("span", { class: "sep" }), h("span", { class: "box res" + (res[i] ? (enDirecto ? " live" : " on") : ""), title: enDirecto ? "Resultado provisional" : "Resultado" }, res[i] || "·"))));
+        h("span", { class: "sep" }), h("span", { class: "box res" + (res[i] ? (enDirecto ? (s.includes(res[i]) ? " live ok" : " live ko") : " on") : ""), title: enDirecto ? "Resultado provisional" : "Resultado" }, res[i] || "·"))));
   });
   const pl = r.pleno || {}, pr = r.pleno_res || {};
   g.append(h("div", { class: "b-row p15" }, h("div", { class: "b-n" }, "15"),
     h("div", { class: "b-teams" }, h("span", null, pl.local || "—"), h("span", null, pl.visitante || "—")),
     h("div", { class: "b-signs" }, h("span", { class: "box on" }, pl.l || "·"), h("span", { class: "box on" }, pl.v || "·"), h("span", { class: "sep" }),
-      h("span", { class: "box res" + (pr.l ? (enDirecto ? " live" : " on") : "") }, pr.l || "·"), h("span", { class: "box res" + (pr.v ? (enDirecto ? " live" : " on") : "") }, pr.v || "·"))));
+      h("span", { class: "box res" + (pr.l ? (enDirecto ? (pr.l === pl.l ? " live ok" : " live ko") : " on") : "") }, pr.l || "·"), h("span", { class: "box res" + (pr.v ? (enDirecto ? (pr.v === pl.v ? " live ok" : " live ko") : " on") : "") }, pr.v || "·"))));
   const e = escrutar(r);
   const ap = escrutinioApp(S.jornadas[r0.jornada]);
   return h("div", { class: "stack" }, g, e && e.n ? h("div", { class: "counter" },
