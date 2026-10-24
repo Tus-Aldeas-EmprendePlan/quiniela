@@ -575,11 +575,13 @@ function pintarModal() {
 function fmtVal(c, v) { if (v == null || v === "") return "—"; if (c === "premio") return eur(v); if (c === "fecha") return fdate(v); return v; }
 function tablaColumnas(d, e) {
   const res = d.resultados || [];
+  // Columnas ordenadas de más a menos aciertos (a igualdad, por su número); arriba, su número original
+  const orden = e.cols.map((_, k) => k).sort((x, y) => e.hits[y] - e.hits[x] || x - y);
   const t = h("table", { class: "cols" });
-  t.append(h("tr", null, h("th", null, ""), e.cols.map((_, k) => h("th", null, k + 1))));
-  t.append(h("tr", { class: "tot" }, h("th", null, "Ac."), e.hits.map(x => h("td", { class: "tot-c" + (x === e.best ? " best" : "") }, x))));
-  for (let i = 0; i < NPART; i++) t.append(h("tr", null, h("th", null, i + 1), e.cols.map(c => { const s = c[i]; const cls = res[i] ? (s === res[i] ? " hit" : " miss") : ""; return h("td", { class: "c" + cls }, s); })));
-  return h("div", { class: "stack", style: "gap:6px" }, h("p", { class: "small muted" }, "Arriba, los aciertos de cada columna (la mejor, resaltada). Verde: acierto; rojo: fallo; gris: partido sin resultado todavía."), h("div", { class: "tw" }, t));
+  t.append(h("tr", null, h("th", null, "Col."), orden.map(k => h("th", null, k + 1))));
+  t.append(h("tr", { class: "tot" }, h("th", null, "Ac."), orden.map(k => h("td", { class: "tot-c" + (e.hits[k] === e.best ? " best" : "") }, e.hits[k]))));
+  for (let i = 0; i < NPART; i++) t.append(h("tr", null, h("th", null, i + 1), orden.map(k => { const s = e.cols[k][i]; const cls = res[i] ? (s === res[i] ? " hit" : " miss") : ""; return h("td", { class: "c" + cls }, s); })));
+  return h("div", { class: "stack", style: "gap:6px" }, h("p", { class: "small muted" }, "Columnas ordenadas de más a menos aciertos; encima, el número de cada columna en el boleto. Verde: acierto; rojo: fallo; gris: partido sin resultado todavía."), h("div", { class: "tw" }, t));
 }
 function autoAciertos() { const d = M.draft; const e = escrutar(d); if (e && e.n) d.aciertos = e.total; }
 function pegarPartidos() {
