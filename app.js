@@ -157,7 +157,16 @@ const soyAdmin = () => !!(S.yo && P(S.yo).admin);
 const puedoEscribir = jug => !!S.yo && (jug === S.yo || (soyAdmin() && !P(jug).vinculado));
 const playerDot = (id, label) => h("span", { class: "chip p-" + id }, h("span", { class: "dot" }, pname(id)[0]), label ?? pname(id));
 
+/* Con calendario de la peña (data/calendario.json): cada jornada tiene fecha y jugador fijos.
+   La próxima es la primera del calendario sin quiniela cuyo domingo no haya pasado. */
+const isoHoy = (dias = 0) => { const d = new Date(); d.setDate(d.getDate() + dias); return ymd(d).replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3"); };
+const calDe = j => (S.cal || []).find(c => c.jornada === Number(j)) || null;
 function turno(rows) {
+  if (S.cal && S.cal.length) {
+    const jugadas = new Set(rows.map(r => r.jornada)), desde = isoHoy(-1);
+    const c = S.cal.find(x => !jugadas.has(x.jornada) && x.fecha >= desde);
+    return { cal: true, fin: !c, next: c ? c.jugador : null, jornada: c ? c.jornada : null, fecha: c ? c.fecha : "", abiertas: rows.filter(r => r.estado !== "escrutada"), last: rows[rows.length - 1] };
+  }
   const ord = orden();
   const last = rows[rows.length - 1];
   const next = last ? ord[(ord.indexOf(last.jugador) + 1) % ord.length] : ord[0];
@@ -200,6 +209,7 @@ async function cargarJornadas() {
     const docs = await Promise.all(lista.map(j => fetch(`data/${j.id}.json`, { cache: "no-cache" }).then(r => r.ok ? r.json() : null).catch(() => null)));
     const m = {}; docs.filter(Boolean).forEach(d => m[d.jornada] = d);
     S.jornadas = m;
+    try { const cal = await fetch("data/calendario.json", { cache: "no-cache" }).then(r => r.ok ? r.json() : null); if (cal && cal.temporada === TEMP) S.cal = (cal.jornadas || []).slice().sort((a, b) => a.jornada - b.jornada); } catch (e) { }
     if (S.fase === "app") { render(); autoEscrutinio(); actualizarDirecto(); }
   } catch (e) { }
 }
@@ -291,6 +301,7 @@ function vistaJornada(rows) {
       h("div", { class: "row" }, h("button", { class: "btn", onclick: () => abrirQuiniela(r) }, puedoEscribir(r.jugador) ? (r.estado === "borrador" ? "Seguir rellenando" : "Ver o corregir") : "Ver detalle"))));
   }
   // próxima quiniela
+  if (t.cal) { out.push(...proximaCalendario(t)); return out.concat(pronosticoActual(t)); }
   const libre = !P(t.next).vinculado;
   const opciones = orden().filter(n => n === S.yo || (soyAdmin() && !P(n).vinculado));
   const key = t.jornada + t.next;
@@ -312,10 +323,28 @@ function vistaJornada(rows) {
       h("p", { class: "muted small" }, S.jornadas[nf.jornada] ? "El boleto empieza con el pronóstico ya marcado; cambia lo que quieras." : "Si una jornada no la jugáis, cambia el número: el turno sigue igual."),
       h("div", { class: "row" }, h("button", { class: "btn go", onclick: crearQuiniela }, "Empezar quiniela")))
       : h("p", { class: "muted" }, `Cuando ${pname(t.next)} la rellene, la verás aquí. Mientras tanto puedes mirar el pronóstico.`)));
+  return out.concat(pronosticoActual(t));
+}
+function pronosticoActual(t) {
   const jn = (t.abiertas[0] || {}).jornada;
   const J = S.jornadas[jn] || S.jornadas[t.jornada] || S.jornadas[Math.max(0, ...Object.keys(S.jornadas).map(Number))];
-  if (J) out.push(tarjetaPronostico(J));
-  return out;
+  return J ? [tarjetaPronostico(J)] : [];
+}
+function proximaCalendario(t) {
+  if (t.fin) return [h("section", { class: "card stack" }, h("h2", null, "Temporada terminada"), h("p", { class: "muted" }, "No quedan jornadas en el calendario de la peña."))];
+  const key = "cal" + t.jornada;
+  if (!S.newForm || S.newForm._k !== key) S.newForm = { _k: key, jornada: t.jornada, fecha: t.fecha, jugador: t.next };
+  const nf = S.newForm;
+  const meToca = puedoEscribir(t.next);
+  const sig = S.cal.filter(c => c.jornada > t.jornada).slice(0, 3);
+  return [h("section", { class: "card stack p-" + t.next },
+    h("div", { class: "turn" }, h("div", { class: "big" }, pname(t.next)[0]),
+      h("div", null, h("div", { class: "label" }, `Próxima quiniela · Jornada ${t.jornada} · ${fdate(t.fecha)}`), h("h2", null, t.next === S.yo ? "Te toca a ti" : `Le toca a ${pname(t.next)}`),
+        h("div", { class: "muted small" }, "Turnos según el calendario de la peña. ", sig.length ? "Después: " + sig.map(c => `J${c.jornada} ${pname(c.jugador)}`).join(" · ") + "." : ""))),
+    meToca ? h("div", { class: "stack" },
+      h("p", { class: "muted small" }, S.jornadas[t.jornada] ? "El boleto empieza con el pronóstico ya marcado; cambia lo que quieras." : "El pronóstico de esta jornada aún no está cargado; puedes empezar el boleto a mano o esperar a que salga."),
+      h("div", { class: "row" }, h("button", { class: "btn go", onclick: crearQuiniela }, "Empezar quiniela")))
+      : h("p", { class: "muted" }, `Cuando ${pname(t.next)} la rellene, la verás aquí. Mientras tanto puedes mirar el pronóstico.`))];
 }
 
 function tarjetaPronostico(J) {
@@ -650,7 +679,7 @@ function tarjetaAnadir(rows) {
   return h("section", { class: "card stack" },
     h("h3", null, "Añadir una jornada jugada fuera de la app"),
     h("div", { class: "fields" },
-      h("label", null, h("span", { class: "label" }, "Jornada"), h("input", { id: "ad-j", type: "number", inputmode: "numeric", min: "1", max: "80", value: f.jornada, oninput: e => f.jornada = e.target.value })),
+      h("label", null, h("span", { class: "label" }, "Jornada"), h("input", { id: "ad-j", type: "number", inputmode: "numeric", min: "1", max: "80", value: f.jornada, oninput: e => f.jornada = e.target.value, onchange: e => { const c = calDe(e.target.value); if (c) { f.fecha = c.fecha; if (opciones.includes(c.jugador)) f.jugador = c.jugador; render(); } } })),
       h("label", null, h("span", { class: "label" }, "Fecha"), h("input", { id: "ad-f", type: "date", value: f.fecha, oninput: e => f.fecha = e.target.value })),
       opciones.length > 1 ? h("label", null, h("span", { class: "label" }, "Jugador"), h("select", { id: "ad-p", onchange: e => f.jugador = e.target.value }, opciones.map(n => h("option", { value: n, selected: f.jugador === n }, pname(n))))) : null,
       h("label", null, h("span", { class: "label" }, "Aciertos"), h("input", { id: "ad-a", type: "number", inputmode: "numeric", min: "0", max: "15", value: f.aciertos, oninput: e => f.aciertos = e.target.value })),

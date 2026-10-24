@@ -19,6 +19,11 @@ escrutinio automático, ranking, histórico y reparto de fin de temporada.
 
 ## Formato de `data/`
 
+`data/calendario.json` es el calendario de la peña: `{temporada, jornadas: [{jornada, fecha, jugador}]}`.
+La app asigna los turnos y la próxima jornada según este calendario. Si la peña se salta una jornada,
+se cambia aquí.
+
+
 `data/jornadas.json` lista las jornadas disponibles:
 
 ```json
