@@ -179,3 +179,27 @@ tr.click:hover td{background:var(--soft)}
 .cols tr.tot td.tot-c{font-weight:700;font-size:1.05rem;padding-bottom:4px}
 .cols tr.tot td.best{background:var(--accent);color:var(--accent-ink);border-radius:3px}
 .estim{border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--paper)}
+
+/* lista compacta de partidos: un partido por línea */
+.lp-head,.lp-row{display:grid;grid-template-columns:16px minmax(0,1fr) 34px minmax(0,1fr) 30px 54px 28px;gap:4px;align-items:center}
+.lp-head{font-size:.6rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:600;padding:0 2px 6px;border-bottom:2px solid var(--ink)}
+.lp-head span{text-align:center}
+.lp-head .lp-h-partido{grid-column:2 / 5}
+.lp-row{padding:8px 2px;border-bottom:1px solid var(--line);font-size:.8rem}
+.lp-f{font-size:.6em;font-weight:700;color:var(--muted);margin-left:1px}
+.lp-row:last-child{background:var(--soft);border-radius:6px;border-bottom:0}
+.lp-row.en-juego{background:color-mix(in srgb,var(--bad-soft) 55%,transparent)}
+.lp-n{font-family:var(--display);font-weight:700;color:var(--muted);text-align:right}
+.lp-loc,.lp-vis{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.lp-loc{text-align:right}
+.lp-marc{font-family:var(--display);font-weight:700;font-size:1.08rem;text-align:center;white-space:nowrap}
+.lp-marc.vivo{color:var(--bad)}
+.lp-hora{display:flex;flex-direction:column;align-items:center;font-size:.62rem;line-height:1.1;color:var(--muted)}
+.lp-jug{font-family:var(--display);font-weight:700;text-align:center;font-size:1rem}
+.lp-est{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.02em;text-align:center;color:var(--muted);white-space:nowrap}
+.lp-est.vivo{color:var(--bad)}
+.lp-real{min-width:28px;height:28px;padding:0 3px;border-radius:4px;display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:1rem;justify-self:center;white-space:nowrap}
+.lp-real.ok{background:var(--accent-soft);color:var(--accent)}
+.lp-real.ko{background:var(--bad-soft);color:var(--bad)}
+.lp-real.prov{outline:1.5px dashed currentColor;outline-offset:-3px}
+@media (min-width:600px){.lp-row{font-size:.92rem}.lp-head,.lp-row{grid-template-columns:24px minmax(0,1fr) 48px minmax(0,1fr) 54px 80px 40px;gap:8px}}

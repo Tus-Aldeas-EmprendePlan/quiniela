@@ -346,6 +346,55 @@ function vistaLogin() {
 }
 
 /* ---------- pestaña Jornada ---------- */
+/* Lista compacta de partidos, al estilo de las apps de quinielas:
+   nº · local marcador visitante · pronóstico jugado · estado · signo real */
+/* Nombres cortos para que cada partido quepa en una línea */
+function nombreCorto(n) {
+  let s = String(n || "").trim(); const fem = /\(F\)/i.test(s); s = s.replace(/\s*\(F\)\s*/i, "");
+  const fijos = { "rayo vallecano": "Rayo", "at. madrid": "Atlético", "atlético de madrid": "Atlético", "atletico madrid": "Atlético", "athletic club": "Athletic", "real sociedad": "Real Soc.", "real madrid": "Madrid", "real betis": "Betis", "r. oviedo": "Oviedo", "real oviedo": "Oviedo", "deportivo": "Depor", "deportivo la coruña": "Depor", "celta de vigo": "Celta", "barcelona": "Barça", "real zaragoza": "Zaragoza", "real valladolid": "Valladolid", "sporting de gijón": "Sporting", "badalona women": "Badalona", "madrid cff": "M. CFF", "ud las palmas": "Las Palmas", "logroño": "Logroño", "tenerife": "Tenerife", "deportivo alavés": "Alavés" };
+  s = fijos[s.toLowerCase()] || s.replace(/^Real /, "R. ");
+  return fem ? [s, h("sup", { class: "lp-f" }, "F")] : s;
+}
+function horaCorta(s) {
+  if (!s) return ""; const [d, t] = String(s).split(" "); const dt = new Date(d + "T12:00:00");
+  const dia = dt.toLocaleDateString("es-ES", { weekday: "short" }).replace(".", "");
+  return `${dia.charAt(0).toUpperCase() + dia.slice(1)} ${t || ""}`.trim();
+}
+function listaPartidos(J, r) {
+  const L = S.live[J.jornada];
+  const jugado = i => r && r.partidos ? normSigns(r.partidos[i].signos) : J.partidos[i].sugerido;
+  const fila = (n, p, it, signoOf, jug, real) => {
+    const fin = real != null && (it ? it.estado === "post" : true);
+    const vivo = it && it.estado === "in";
+    const estado = vivo ? h("span", { class: "lp-est vivo" }, it.descanso ? "Descanso" : (it.detalle || "En juego"))
+      : fin ? h("span", { class: "lp-est" }, "Final") : h("span", { class: "lp-est" }, "");
+    const [dia, hh] = horaCorta(p.hora).split(" ");
+    const centro = it && it.marcador ? h("span", { class: "lp-marc" + (vivo ? " vivo" : "") }, `${it.gh}-${it.ga}`)
+      : fin && real ? h("span", { class: "lp-marc" }, "–") : h("span", { class: "lp-hora" }, h("span", null, dia), h("span", null, hh));
+    const ok = real ? signoOf(real, jug) : null;
+    return h("div", { class: "lp-row" + (vivo ? " en-juego" : "") },
+      h("span", { class: "lp-n" }, n),
+      h("span", { class: "lp-loc", title: p.local }, nombreCorto(p.local)), centro, h("span", { class: "lp-vis", title: p.visitante }, nombreCorto(p.visitante)),
+      h("span", { class: "lp-jug" }, jug || "·"),
+      estado,
+      h("span", { class: "lp-real" + (real ? (ok ? " ok" : " ko") + (vivo ? " prov" : "") : "") }, real || ""));
+  };
+  const rows = J.partidos.map((p, i) => {
+    const it = L && L.items[i];
+    const real = (J.resultados && J.resultados[i]) || (it && it.signo) || null;
+    return fila(i + 1, p, J.resultados ? null : it, (x, jug) => jug.includes(x), jugado(i), real);
+  });
+  const pl = J.pleno, ip = L && L.pleno;
+  const jugPl = r && r.pleno && r.pleno.l ? `${r.pleno.l}-${r.pleno.v}` : `${pl.l}-${pl.v}`;
+  const realPl = J.plenoRes ? `${J.plenoRes.l}-${J.plenoRes.v}` : (ip && ip.goles ? `${ip.goles.l}-${ip.goles.v}` : null);
+  rows.push(fila(15, pl, J.plenoRes ? null : ip, (x, jug) => x === jug, jugPl, realPl));
+  const quien = r ? `Pronóstico jugado: el boleto de ${pname(r.jugador)}` : "Pronóstico: el boleto propuesto por la app";
+  return h("section", { class: "card stack" },
+    h("div", { class: "row spread" }, h("h2", null, `Partidos · Jornada ${J.jornada}`), h("span", { class: "small muted" }, quien)),
+    h("div", { class: "lp-head" }, h("span", null, "Nº"), h("span", { class: "lp-h-partido" }, "Partido"), h("span", null, "Jug."), h("span", null, "Estado"), h("span", null, "Real")),
+    h("div", { class: "lp" }, rows),
+    h("p", { class: "small muted" }, "El signo real sale en verde si entra en el pronóstico jugado y en rojo si no. Mientras se juega, es provisional (con borde discontinuo)."));
+}
 function vistaJornada(rows) {
   const t = turno(rows); const out = [];
   for (const r of t.abiertas) {
@@ -360,6 +409,8 @@ function vistaJornada(rows) {
       r.partidos ? boletoVista(r) : h("p", { class: "muted" }, "Todavía sin partidos."),
       h("div", { class: "row" }, h("button", { class: "btn", onclick: () => abrirQuiniela(r) }, puedoEscribir(r.jugador) ? (r.estado === "borrador" ? "Seguir rellenando" : "Ver o corregir") : "Ver detalle"))));
   }
+  { const r1 = t.abiertas[0]; const J1 = r1 ? S.jornadas[r1.jornada] : null;
+    const Jx = J1 || S.jornadas[t.jornada]; if (Jx) out.push(listaPartidos(Jx, r1 && r1.partidos ? r1 : null)); }
   // próxima quiniela
   if (t.cal) { out.push(...proximaCalendario(t)); return out.concat(pronosticoActual(t)); }
   const libre = !P(t.next).vinculado;
@@ -964,14 +1015,15 @@ function leerEvento(ev) {
   const st = (ev.status || c.status || {}); const ty = st.type || {};
   const nombre = t => [t.displayName, t.shortDisplayName, t.name, t.location].filter(Boolean).join(" ");
   return { id: String(ev.id), home: nombre(home.team || {}), away: nombre(away.team || {}), gh: parseInt(home.score), ga: parseInt(away.score),
-    estado: ty.state || "pre", detalle: ty.shortDetail || ty.detail || st.displayClock || "", fecha: ev.date };
+    estado: ty.state || "pre", detalle: ty.shortDetail || ty.detail || st.displayClock || "", fecha: ev.date,
+    descanso: ty.name === "STATUS_HALFTIME" || /^(HT|Halftime|Descanso)$/i.test(ty.shortDetail || "") };
 }
 function itemDe(ev) {
   if (!ev) return null;
   const jugando = ev.estado === "in" || ev.estado === "post";
   const ok = jugando && !isNaN(ev.gh) && !isNaN(ev.ga);
   const g = n => n >= 3 ? "M" : String(n);
-  return { estado: ev.estado, detalle: ev.detalle, marcador: ok ? `${ev.gh}-${ev.ga}` : "", signo: ok ? (ev.gh > ev.ga ? "1" : ev.gh === ev.ga ? "X" : "2") : "", goles: ok ? { l: g(ev.gh), v: g(ev.ga) } : null };
+  return { estado: ev.estado, detalle: ev.detalle, descanso: !!ev.descanso, gh: ok ? ev.gh : null, ga: ok ? ev.ga : null, marcador: ok ? `${ev.gh}-${ev.ga}` : "", signo: ok ? (ev.gh > ev.ga ? "1" : ev.gh === ev.ga ? "X" : "2") : "", goles: ok ? { l: g(ev.gh), v: g(ev.ga) } : null };
 }
 async function pedirLiga(liga, dia) {
   const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/${liga}/scoreboard?dates=${dia}`, { cache: "no-store" });
