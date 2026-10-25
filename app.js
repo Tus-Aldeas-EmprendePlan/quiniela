@@ -936,7 +936,8 @@ function abrirMenu() {
     item("Cómo funciona", "Explicado paso a paso, sin tecnicismos", abrirAyuda),
     item("Instalar en el móvil", "Para tenerla como una app más en la pantalla", abrirInstalar),
     DEMO ? null : item("Cambiar mi contraseña", "Pon una que te acuerdes", abrirPass),
-    item("Salir", S.yo ? `Cerrar la sesión de ${pname(S.yo)}` : "Cerrar sesión", async () => { cerrarModal(); await API.logout(); S.yo = null; S.fase = "login"; render(); })));
+    item("Salir", S.yo ? `Cerrar la sesión de ${pname(S.yo)}` : "Cerrar sesión", async () => { cerrarModal(); await API.logout(); S.yo = null; S.fase = "login"; render(); }),
+    h("p", { class: "small muted", style: "text-align:center" }, "Versión " + ((VERSION_APP.match(/v=(\d+)/) || [])[1] || "?") + " · " + location.host)));
 }
 function abrirPass() {
   let p1 = "", p2 = ""; let err = null;
