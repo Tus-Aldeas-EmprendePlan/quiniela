@@ -112,14 +112,22 @@ function estimarUno(J, res, plenoRes) {
   for (const c in cats) if (MINIMO[c] && cats[c].premio < MINIMO[c]) { cats[c].premio = MINIMO[c]; cats[c].minimo = true; }
   return { cats, aprox, N };
 }
-/* Con resultados completos da una estimación; si faltan hasta 3 partidos, el rango entre el mejor y el peor caso */
+/* Horquilla de premios: con resultados completos, una estimación. Si faltan hasta 3 partidos se prueban
+   todas las combinaciones; si faltan más, el peor caso (salen los signos más apostados) y el mejor
+   (salen los menos apostados). */
 function estimarPremios(J, res, plenoRes) {
   if (!J || !J.estimacion || !J.estimacion.recaudacion || !res) return null;
   const faltan = []; for (let i = 0; i < NPART; i++) if (!res[i]) faltan.push(i);
-  if (faltan.length > 3) return { faltan: faltan.length };
   const escenarios = [];
-  const rec = (k, cur) => { if (k === faltan.length) { escenarios.push(cur.slice()); return; } for (const s of SIGNS) { cur[faltan[k]] = s; rec(k + 1, cur); } };
-  rec(0, res.slice());
+  if (faltan.length <= 3) {
+    const rec = (k, cur) => { if (k === faltan.length) { escenarios.push(cur.slice()); return; } for (const s of SIGNS) { cur[faltan[k]] = s; rec(k + 1, cur); } };
+    rec(0, res.slice());
+  } else {
+    const masJugado = i => { const { q } = pctPartido(J, i); return SIGNS.slice().sort((a, b) => (Number(q[b]) || 0) - (Number(q[a]) || 0)); };
+    const peor = res.slice(), mejor = res.slice();
+    faltan.forEach(i => { const o = masJugado(i); peor[i] = o[0]; mejor[i] = o[2]; });
+    escenarios.push(peor, mejor);
+  }
   const plenoOk = plenoRes && plenoRes.l && plenoRes.v ? plenoRes : null;
   const ests = escenarios.map(r => estimarUno(J, r, plenoOk));
   const cats = {};
@@ -395,14 +403,14 @@ function tarjetaEstimacion(J) {
   const est = estimarPremios(J, res, plenoRes);
   const datos = `Recaudación ${eur(J.estimacion.recaudacion)}` + (J.estimacion.bote ? ` · bote del Pleno al 15 ${eur(J.estimacion.bote)}` : "") + ` · ${Math.round(J.estimacion.recaudacion / (J.estimacion.precioApuesta || 0.75)).toLocaleString("es-ES")} apuestas`;
   const head = h("div", { class: "row spread" }, h("h3", null, "Estimación de premios"), h("span", { class: "small muted" }, datos));
-  if (!est || est.faltan > 3) return h("div", { class: "estim stack" }, head, h("p", { class: "small muted" }, "La estimación aparece cuando faltan como mucho 3 partidos por empezar: entonces se calcula el abanico entre el mejor y el peor caso."));
+  if (!est) return null;
   const fmtA = (a, b) => { const r = x => x < 1 ? (x < 0.05 ? "0" : "<1") : Math.round(x).toLocaleString("es-ES"); return r(a) === r(b) ? r(a) : `${r(a)}–${r(b)}`; };
   const fmtP = (a, b) => Math.abs(a - b) < 0.005 ? eur(a) : `${eur(a)} – ${eur(b)}`;
   const nombres = { "15": "Pleno al 15", "14": "14 aciertos", "13": "13 aciertos", "12": "12 aciertos", "11": "11 aciertos", "10": "10 aciertos" };
   const filas = ["15", "14", "13", "12", "11", "10"].filter(c => est.cats[c]).map(c => { const o = est.cats[c];
     return h("tr", null, h("td", null, nombres[c]), h("td", { class: "num" }, fmtA(o.acertMin, o.acertMax)),
       h("td", { class: "num" }, h("b", null, fmtP(Math.min(o.min, o.max), o.max)), o.sinAcertante ? h("span", { class: "muted small" }, " si hay acertante") : null, o.minimo ? h("span", { class: "muted small" }, " (mínimo)") : null)); });
-  const titulo = J.resultados ? "Con los resultados oficiales, a falta de que Loterías publique los premios." : est.rango ? `Si acabara ahora, con ${est.faltan} partido${est.faltan > 1 ? "s" : ""} por decidir: del peor al mejor caso.` : "Si acabara ahora, con los marcadores en directo.";
+  const titulo = J.resultados ? "Con los resultados oficiales, a falta de que Loterías publique los premios." : est.rango ? `Horquilla con ${est.faltan} partido${est.faltan > 1 ? "s" : ""} sin resultado: del peor caso (salen los signos más apostados) al mejor (salen los menos apostados). Los partidos en juego cuentan con su marcador actual.` : "Si acabara ahora, con los marcadores en directo.";
   return h("div", { class: "estim stack" }, head, h("p", { class: "small muted" }, titulo),
     h("div", { class: "tw" }, h("table", null, h("thead", null, h("tr", null, h("th", null, "Categoría"), h("th", { class: "num" }, "Acertantes"), h("th", { class: "num" }, "Premio estimado"))), h("tbody", null, filas))),
     h("p", { class: "small muted" }, est.aprox ? "Estimación aproximada: faltan los porcentajes oficiales de lo que ha apostado la gente y se usan las probabilidades de la app. Orientativa; el premio real lo fija Loterías." : "Calculada con los porcentajes de apuestas publicados por Loterías. Orientativa; el premio real lo fija Loterías."));
