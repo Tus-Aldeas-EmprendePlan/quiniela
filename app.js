@@ -348,6 +348,13 @@ function vistaLogin() {
 /* ---------- pestaña Jornada ---------- */
 /* Lista compacta de partidos, al estilo de las apps de quinielas:
    nº · local marcador visitante · pronóstico jugado · estado · signo real */
+/* Nombres cortos para que cada partido quepa en una línea */
+function nombreCorto(n) {
+  let s = String(n || "").trim(); const fem = /\(F\)/i.test(s); s = s.replace(/\s*\(F\)\s*/i, "");
+  const fijos = { "rayo vallecano": "Rayo", "at. madrid": "Atlético", "atlético de madrid": "Atlético", "atletico madrid": "Atlético", "athletic club": "Athletic", "real sociedad": "Real Soc.", "real madrid": "Madrid", "real betis": "Betis", "r. oviedo": "Oviedo", "real oviedo": "Oviedo", "deportivo": "Depor", "deportivo la coruña": "Depor", "celta de vigo": "Celta", "barcelona": "Barça", "real zaragoza": "Zaragoza", "real valladolid": "Valladolid", "sporting de gijón": "Sporting", "badalona women": "Badalona", "madrid cff": "M. CFF", "ud las palmas": "Las Palmas", "logroño": "Logroño", "tenerife": "Tenerife", "deportivo alavés": "Alavés" };
+  s = fijos[s.toLowerCase()] || s.replace(/^Real /, "R. ");
+  return fem ? [s, h("sup", { class: "lp-f" }, "F")] : s;
+}
 function horaCorta(s) {
   if (!s) return ""; const [d, t] = String(s).split(" "); const dt = new Date(d + "T12:00:00");
   const dia = dt.toLocaleDateString("es-ES", { weekday: "short" }).replace(".", "");
@@ -359,13 +366,15 @@ function listaPartidos(J, r) {
   const fila = (n, p, it, signoOf, jug, real) => {
     const fin = real != null && (it ? it.estado === "post" : true);
     const vivo = it && it.estado === "in";
-    const estado = vivo ? (it.descanso ? h("span", { class: "lp-est vivo" }, "Descanso") : h("span", { class: "lp-est vivo" }, it.detalle || "En juego"))
-      : fin ? h("span", { class: "lp-est" }, "Final") : h("span", { class: "lp-est hora" }, horaCorta(p.hora));
-    const gol = x => h("span", { class: "lp-gol" + (vivo ? " vivo" : "") }, x == null ? "" : x);
+    const estado = vivo ? h("span", { class: "lp-est vivo" }, it.descanso ? "Descanso" : (it.detalle || "En juego"))
+      : fin ? h("span", { class: "lp-est" }, "Final") : h("span", { class: "lp-est" }, "");
+    const [dia, hh] = horaCorta(p.hora).split(" ");
+    const centro = it && it.marcador ? h("span", { class: "lp-marc" + (vivo ? " vivo" : "") }, `${it.gh}-${it.ga}`)
+      : fin && real ? h("span", { class: "lp-marc" }, "–") : h("span", { class: "lp-hora" }, h("span", null, dia), h("span", null, hh));
     const ok = real ? signoOf(real, jug) : null;
     return h("div", { class: "lp-row" + (vivo ? " en-juego" : "") },
       h("span", { class: "lp-n" }, n),
-      h("span", { class: "lp-match" }, h("span", { class: "lp-team" }, p.local), gol(it && it.marcador ? it.gh : null), h("span", { class: "lp-team" }, p.visitante), gol(it && it.marcador ? it.ga : null)),
+      h("span", { class: "lp-loc", title: p.local }, nombreCorto(p.local)), centro, h("span", { class: "lp-vis", title: p.visitante }, nombreCorto(p.visitante)),
       h("span", { class: "lp-jug" }, jug || "·"),
       estado,
       h("span", { class: "lp-real" + (real ? (ok ? " ok" : " ko") + (vivo ? " prov" : "") : "") }, real || ""));
@@ -382,7 +391,7 @@ function listaPartidos(J, r) {
   const quien = r ? `Pronóstico jugado: el boleto de ${pname(r.jugador)}` : "Pronóstico: el boleto propuesto por la app";
   return h("section", { class: "card stack" },
     h("div", { class: "row spread" }, h("h2", null, `Partidos · Jornada ${J.jornada}`), h("span", { class: "small muted" }, quien)),
-    h("div", { class: "lp-head" }, h("span", null, "Nº"), h("span", null, "Partido"), h("span", null, "Jugado"), h("span", null, "Estado"), h("span", null, "Real")),
+    h("div", { class: "lp-head" }, h("span", null, "Nº"), h("span", { class: "lp-h-partido" }, "Partido"), h("span", null, "Jug."), h("span", null, "Estado"), h("span", null, "Real")),
     h("div", { class: "lp" }, rows),
     h("p", { class: "small muted" }, "El signo real sale en verde si entra en el pronóstico jugado y en rojo si no. Mientras se juega, es provisional (con borde discontinuo)."));
 }
