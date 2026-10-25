@@ -1,0 +1,25 @@
+name: Datos para la estimación de premios
+on:
+  schedule:
+    - cron: "13 9,16 * * 0"   # domingos 10:13 y 17:13 en horario de invierno (11:13 y 18:13 en verano)
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  estimacion:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/estimacion.py
+      - run: python3 scripts/validar.py
+      - name: Guardar cambios
+        run: |
+          if [ -n "$(git status --porcelain data)" ]; then
+            git config user.name "quiniela-bot"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add data
+            git commit -m "Datos para la estimación de premios (Eduardo Losilla)"
+            git push
+          else
+            echo "Sin cambios"
+          fi

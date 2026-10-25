@@ -41,6 +41,7 @@ Cada `data/<id>.json` tiene:
 - `pleno`: `{local, visitante, hora, l, v, nota}` con `l`/`v` en `0`, `1`, `2` o `M`
 - `resumen`, `fuentes` (URLs), `generado`
 - `estimacion` (opcional, para la estimación de premios): `{recaudacion, bote, precioApuesta, porcentajes: [{"1","X","2"} ×14], plenoPct: {local: {"0","1","2","M"}, visitante: {...}}, definitiva, fuentes, actualizado}`.
+  Lo rellena `scripts/estimacion.py` (GitHub Actions, domingos) con los datos de la página de estimación de Eduardo Losilla.
   Porcentajes en % de lo apostado por el público (LAE). Sin porcentajes, la app usa sus probabilidades y lo marca como aproximado.
 - Tras la jornada: `resultados` (14 signos), `plenoRes` `{l, v}` y `premios`
   `{"15": €, "14": €, "13": €, "12": €, "11": €, "10": €}` por apuesta acertada.
