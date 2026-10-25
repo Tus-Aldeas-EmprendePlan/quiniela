@@ -409,7 +409,7 @@ function vistaJornada(rows) {
         h("div", { class: "row" }, playerDot(r.jugador), h("span", { class: "muted small" }, fdate(r.fecha)))),
       r.estado === "borrador" && empezada ? h("div", { class: "note" }, "La jornada ya ha empezado y este boleto sigue en borrador. Si ya lo sellaste, márcalo como sellado.") : null,
       r.estado === "sellada" && !(J && J.resultados) ? h("p", { class: "muted small" }, "Cuando estén los resultados oficiales, la app la escruta sola y apunta el premio.") : null,
-      r.partidos ? boletoVista(r) : h("p", { class: "muted" }, "Todavía sin partidos."),
+      r.partidos ? boletoVista(r, true) : h("p", { class: "muted" }, "Todavía sin partidos."),
       h("div", { class: "row" }, h("button", { class: "btn", onclick: () => abrirQuiniela(r) }, puedoEscribir(r.jugador) ? (r.estado === "borrador" ? "Seguir rellenando" : "Ver o corregir") : "Ver detalle"))));
   }
   // próxima quiniela
@@ -567,7 +567,7 @@ function resumenEscrutinio(r, e, enDirecto) {
   if (dentro > e.best) out.push(h("p", { class: "small muted" }, `Has acertado ${dentro} partidos, pero en la reducida solo cuenta la mejor de las 16 columnas: ${e.best}. Con 7 dobles no se juegan las 128 combinaciones, así que a veces la combinación de dobles que ha salido no está en ninguna columna.`));
   return out;
 }
-function boletoVista(r0) {
+function boletoVista(r0, compacto) {
   const { r, L, enDirecto } = conDirecto(r0);
   const res = r.resultados || [];
   const g = h("div", { class: "boleto" });
@@ -586,7 +586,11 @@ function boletoVista(r0) {
       h("span", { class: "box res" + (pr.l ? (enDirecto ? (pr.l === pl.l ? " live ok" : " live ko") : " on") : "") }, pr.l || "·"), h("span", { class: "box res" + (pr.v ? (enDirecto ? (pr.v === pl.v ? " live ok" : " live ko") : " on") : "") }, pr.v || "·"))));
   const e = escrutar(r);
   const ap = escrutinioApp(S.jornadas[r0.jornada]);
-  if (!e || !e.n) return h("div", { class: "stack" }, g);
+  // En la pestaña Jornada el boleto va plegado: la lista de partidos ya enseña signos y resultados
+  S.boletoOpen = S.boletoOpen || {};
+  const kb = r0.id || r0.jornada, verBoleto = !compacto || !!S.boletoOpen[kb];
+  const toggleBoleto = compacto ? h("button", { class: "link", onclick: () => { S.boletoOpen[kb] = !S.boletoOpen[kb]; render(); } }, S.boletoOpen[kb] ? "Ocultar el boleto" : "Ver el boleto completo") : null;
+  if (!e || !e.n) return h("div", { class: "stack" }, verBoleto ? g : null, toggleBoleto);
   S.colsOpen = S.colsOpen || {};
   const k = r0.id || r0.jornada, abierto = !!S.colsOpen[k];
   const J0 = S.jornadas[r0.jornada];
@@ -598,7 +602,7 @@ function boletoVista(r0) {
       if (b > 0) estBoleto = h("p", { class: "small" }, h("b", null, "Premio estimado: "), Math.abs(a - b) < 0.005 ? eur(a) : `${eur(Math.min(a, b))} – ${eur(Math.max(a, b))}`, h("span", { class: "muted" }, enDirecto ? " si acabara ahora" : " (orientativo)"));
     }
   }
-  return h("div", { class: "stack" }, g, ...resumenEscrutinio(r, e, enDirecto), estBoleto,
+  return h("div", { class: "stack" }, verBoleto ? g : null, ...resumenEscrutinio(r, e, enDirecto), estBoleto, toggleBoleto,
     h("div", { class: "row spread" },
       ap ? h("span", { class: "small muted" }, "El boleto de la app llevaría ", h("b", null, ap.e.total === 15 ? "14 + pleno" : ap.e.best)) : h("span"),
       h("button", { class: "link", onclick: () => { S.colsOpen[k] = !abierto; render(); } }, abierto ? "Ocultar columnas" : "Ver las 16 columnas")),
