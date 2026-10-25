@@ -179,3 +179,25 @@ tr.click:hover td{background:var(--soft)}
 .cols tr.tot td.tot-c{font-weight:700;font-size:1.05rem;padding-bottom:4px}
 .cols tr.tot td.best{background:var(--accent);color:var(--accent-ink);border-radius:3px}
 .estim{border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--paper)}
+
+/* lista compacta de partidos */
+.lp-head,.lp-row{display:grid;grid-template-columns:20px minmax(0,1fr) 46px 66px 34px;gap:8px;align-items:center}
+.lp-head{font-size:.62rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;padding:0 2px 6px;border-bottom:2px solid var(--ink)}
+.lp-head span:nth-child(n+3){text-align:center}
+.lp-row{padding:7px 2px;border-bottom:1px solid var(--line)}
+.lp-row:last-child{background:var(--soft);border-radius:6px;border-bottom:0}
+.lp-row.en-juego{background:color-mix(in srgb,var(--bad-soft) 55%,transparent)}
+.lp-n{font-family:var(--display);font-weight:700;color:var(--muted);text-align:right}
+.lp-match{display:grid;grid-template-columns:minmax(0,1fr) 18px;column-gap:6px;row-gap:1px;align-items:center;font-size:.88rem;min-width:0;line-height:1.25}
+.lp-team{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lp-gol{font-family:var(--display);font-weight:700;font-size:1.05rem;text-align:right}
+.lp-gol.vivo{color:var(--bad)}
+.lp-jug{font-family:var(--display);font-weight:700;text-align:center;font-size:1.05rem}
+.lp-est{font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.02em;text-align:center;color:var(--muted);white-space:nowrap}
+.lp-est.vivo{color:var(--bad)}
+.lp-est.hora{text-transform:none;font-weight:500;font-size:.74rem;letter-spacing:0}
+.lp-real{min-width:30px;height:30px;padding:0 3px;border-radius:4px;display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:1.05rem;justify-self:center;white-space:nowrap}
+.lp-real.ok{background:var(--accent-soft);color:var(--accent)}
+.lp-real.ko{background:var(--bad-soft);color:var(--bad)}
+.lp-real.prov{outline:1.5px dashed currentColor;outline-offset:-3px}
+@media (max-width:420px){.lp-head,.lp-row{grid-template-columns:18px minmax(0,1fr) 40px 62px 34px;gap:6px}}
