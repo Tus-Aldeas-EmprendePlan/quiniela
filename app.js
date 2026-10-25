@@ -397,6 +397,9 @@ function listaPartidos(J, r) {
 }
 function vistaJornada(rows) {
   const t = turno(rows); const out = [];
+  // Lo primero, la lista de partidos de la jornada en curso
+  { const r1 = t.abiertas[0]; const J1 = r1 ? S.jornadas[r1.jornada] : null;
+    const Jx = J1 || S.jornadas[t.jornada]; if (Jx) out.push(listaPartidos(Jx, r1 && r1.partidos ? r1 : null)); }
   for (const r of t.abiertas) {
     const J = S.jornadas[r.jornada];
     const empezada = J && J.cierre && new Date(J.cierre) < new Date();
@@ -409,8 +412,6 @@ function vistaJornada(rows) {
       r.partidos ? boletoVista(r) : h("p", { class: "muted" }, "Todavía sin partidos."),
       h("div", { class: "row" }, h("button", { class: "btn", onclick: () => abrirQuiniela(r) }, puedoEscribir(r.jugador) ? (r.estado === "borrador" ? "Seguir rellenando" : "Ver o corregir") : "Ver detalle"))));
   }
-  { const r1 = t.abiertas[0]; const J1 = r1 ? S.jornadas[r1.jornada] : null;
-    const Jx = J1 || S.jornadas[t.jornada]; if (Jx) out.push(listaPartidos(Jx, r1 && r1.partidos ? r1 : null)); }
   // próxima quiniela
   if (t.cal) { out.push(...proximaCalendario(t)); return out.concat(pronosticoActual(t)); }
   const libre = !P(t.next).vinculado;
