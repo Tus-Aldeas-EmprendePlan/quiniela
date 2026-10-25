@@ -39,6 +39,22 @@ for e in idx.get("jornadas", []):
     if pr is not None and (pr.get("l") not in GOL or pr.get("v") not in GOL): err(f, "plenoRes no válido")
     pm = d.get("premios")
     if pm is not None and not all(isinstance(pm.get(k), (int, float)) for k in ("14", "13", "12", "11", "10")): err(f, "premios: faltan categorías o no son números")
+    est = d.get("estimacion")
+    if est is not None:
+        if not isinstance(est.get("recaudacion"), (int, float)) or est["recaudacion"] <= 0: err(f, "estimacion: falta la recaudación (número en euros)")
+        pc = est.get("porcentajes")
+        if pc is not None:
+            if len(pc) != 14: err(f, "estimacion: porcentajes debe tener 14 partidos")
+            for i, q in enumerate(pc or [], 1):
+                try:
+                    t = q["1"] + q["X"] + q["2"]
+                    if abs(t - 100) > 2: err(f, f"estimacion: porcentajes del partido {i} suman {t}")
+                except Exception: err(f, f"estimacion: porcentajes del partido {i} no válidos")
+        pp = est.get("plenoPct")
+        if pp is not None:
+            for lado in ("local", "visitante"):
+                q = pp.get(lado) or {}
+                if set(q) != GOL: err(f, f"estimacion: plenoPct.{lado} debe tener 0, 1, 2 y M")
 if errores:
     print("Hay errores:"); [print(" -", x) for x in errores]; sys.exit(1)
 print(f"Todo correcto: {len(idx.get('jornadas', []))} jornadas revisadas.")

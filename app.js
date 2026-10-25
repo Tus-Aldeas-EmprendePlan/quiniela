@@ -72,6 +72,64 @@ function escrutar(q) {
   return { cols, hits, best, total, dist, completo: n === NPART, n, plenoOk };
 }
 /* premio según el escrutinio oficial: 15 = 14 + pleno; 14, 13, 12, 11, 10 */
+/* ---------- estimación de premios ----------
+   Como hacen Eduardo Losilla y otras webs: nº de apuestas = recaudación / 0,75 €, y para cada
+   categoría, acertantes esperados = apuestas × probabilidad de que una apuesta al azar (según
+   los porcentajes jugados en cada signo) tenga esos aciertos. Premio = fondo / acertantes.
+   Reparto de la recaudación: 14 → 16 %, 13/12/11 → 7,5 %, 10 → 9 %, Pleno al 15 → 7,5 % + bote. */
+const REPARTO = { "15": 0.075, "14": 0.16, "13": 0.075, "12": 0.075, "11": 0.075, "10": 0.09 };
+const MINIMO = { "13": 1, "12": 1, "11": 1, "10": 1.5 };
+function pctPartido(J, i) {
+  const q = J.estimacion && J.estimacion.porcentajes && J.estimacion.porcentajes[i];
+  if (q) return { q, aprox: false };
+  const p = J.partidos[i]; return { q: { "1": p.p1, "X": p.pX, "2": p.p2 }, aprox: true };
+}
+function estimarUno(J, res, plenoRes) {
+  const est = J.estimacion; const N = est.recaudacion / (est.precioApuesta || 0.75);
+  let dist = [1], aprox = false;
+  for (let i = 0; i < NPART; i++) {
+    const { q, aprox: a } = pctPartido(J, i); aprox = aprox || a;
+    const tot = (Number(q["1"]) || 0) + (Number(q["X"]) || 0) + (Number(q["2"]) || 0) || 100;
+    const pr = (Number(q[res[i]]) || 0) / tot;
+    const nd = new Array(dist.length + 1).fill(0);
+    dist.forEach((v, k) => { nd[k] += v * (1 - pr); nd[k + 1] += v * pr; }); dist = nd;
+  }
+  const cats = {};
+  for (const c of ["14", "13", "12", "11", "10"]) cats[c] = { acert: N * dist[+c], fondo: est.recaudacion * REPARTO[c] };
+  if (plenoRes && plenoRes.l && plenoRes.v) {
+    const pp = est.plenoPct; let pP;
+    if (pp && pp.local && pp.visitante) pP = (Number(pp.local[plenoRes.l]) || 0) / 100 * (Number(pp.visitante[plenoRes.v]) || 0) / 100;
+    else { pP = 0.05; aprox = true; }
+    cats["15"] = { acert: N * dist[14] * pP, fondo: est.recaudacion * REPARTO["15"] + (Number(est.bote) || 0) };
+  }
+  for (const c in cats) { const o = cats[c]; o.premio = o.fondo / Math.max(o.acert, 1); o.sinAcertante = o.acert < 0.5; }
+  // una categoría inferior nunca paga más que la superior: se juntan los fondos
+  const ord = ["14", "13", "12", "11", "10"];
+  for (let k = 1; k < ord.length; k++) {
+    const sup = cats[ord[k - 1]], inf = cats[ord[k]];
+    if (!sup.sinAcertante && inf.premio > sup.premio) { const p = (sup.fondo + inf.fondo) / (Math.max(sup.acert, 1) + inf.acert); sup.premio = inf.premio = p; }
+  }
+  for (const c in cats) if (MINIMO[c] && cats[c].premio < MINIMO[c]) { cats[c].premio = MINIMO[c]; cats[c].minimo = true; }
+  return { cats, aprox, N };
+}
+/* Con resultados completos da una estimación; si faltan hasta 3 partidos, el rango entre el mejor y el peor caso */
+function estimarPremios(J, res, plenoRes) {
+  if (!J || !J.estimacion || !J.estimacion.recaudacion || !res) return null;
+  const faltan = []; for (let i = 0; i < NPART; i++) if (!res[i]) faltan.push(i);
+  if (faltan.length > 3) return { faltan: faltan.length };
+  const escenarios = [];
+  const rec = (k, cur) => { if (k === faltan.length) { escenarios.push(cur.slice()); return; } for (const s of SIGNS) { cur[faltan[k]] = s; rec(k + 1, cur); } };
+  rec(0, res.slice());
+  const plenoOk = plenoRes && plenoRes.l && plenoRes.v ? plenoRes : null;
+  const ests = escenarios.map(r => estimarUno(J, r, plenoOk));
+  const cats = {};
+  for (const c of Object.keys(ests[0].cats)) {
+    const ps = ests.map(e => e.cats[c].premio), as = ests.map(e => e.cats[c].acert);
+    cats[c] = { min: Math.min(...ps), max: Math.max(...ps), acertMin: Math.min(...as), acertMax: Math.max(...as), sinAcertante: ests.every(e => e.cats[c].sinAcertante), minimo: ests.some(e => e.cats[c].minimo) };
+  }
+  return { cats, rango: faltan.length > 0, faltan: faltan.length, aprox: ests[0].aprox, N: ests[0].N };
+}
+function premiosPunto(est, cual) { const o = {}; for (const c in est.cats) o[c] = est.cats[c][cual]; return o; }
 function calcPremio(e, premios) {
   if (!e || !premios) return null;
   let t = 0;
@@ -329,6 +387,26 @@ function escrutinioApp(J) {
   const e = escrutar(q); if (!e) return null;
   return { e, oficial: !!J.resultados, premio: J.resultados && J.premios && e.completo ? calcPremio(e, J.premios) : null };
 }
+function tarjetaEstimacion(J) {
+  if (!J.estimacion || !J.estimacion.recaudacion || J.premios) return null;
+  const L = J.resultados ? null : S.live[J.jornada];
+  const res = J.resultados || (L ? L.items.map(x => (x && x.signo) || "") : Array(NPART).fill(""));
+  const plenoRes = J.plenoRes || (L && L.pleno && L.pleno.goles) || null;
+  const est = estimarPremios(J, res, plenoRes);
+  const datos = `Recaudación ${eur(J.estimacion.recaudacion)}` + (J.estimacion.bote ? ` · bote del Pleno al 15 ${eur(J.estimacion.bote)}` : "") + ` · ${Math.round(J.estimacion.recaudacion / (J.estimacion.precioApuesta || 0.75)).toLocaleString("es-ES")} apuestas`;
+  const head = h("div", { class: "row spread" }, h("h3", null, "Estimación de premios"), h("span", { class: "small muted" }, datos));
+  if (!est || est.faltan > 3) return h("div", { class: "estim stack" }, head, h("p", { class: "small muted" }, "La estimación aparece cuando faltan como mucho 3 partidos por empezar: entonces se calcula el abanico entre el mejor y el peor caso."));
+  const fmtA = (a, b) => { const r = x => x < 1 ? (x < 0.05 ? "0" : "<1") : Math.round(x).toLocaleString("es-ES"); return r(a) === r(b) ? r(a) : `${r(a)}–${r(b)}`; };
+  const fmtP = (a, b) => Math.abs(a - b) < 0.005 ? eur(a) : `${eur(a)} – ${eur(b)}`;
+  const nombres = { "15": "Pleno al 15", "14": "14 aciertos", "13": "13 aciertos", "12": "12 aciertos", "11": "11 aciertos", "10": "10 aciertos" };
+  const filas = ["15", "14", "13", "12", "11", "10"].filter(c => est.cats[c]).map(c => { const o = est.cats[c];
+    return h("tr", null, h("td", null, nombres[c]), h("td", { class: "num" }, fmtA(o.acertMin, o.acertMax)),
+      h("td", { class: "num" }, h("b", null, fmtP(Math.min(o.min, o.max), o.max)), o.sinAcertante ? h("span", { class: "muted small" }, " si hay acertante") : null, o.minimo ? h("span", { class: "muted small" }, " (mínimo)") : null)); });
+  const titulo = J.resultados ? "Con los resultados oficiales, a falta de que Loterías publique los premios." : est.rango ? `Si acabara ahora, con ${est.faltan} partido${est.faltan > 1 ? "s" : ""} por decidir: del peor al mejor caso.` : "Si acabara ahora, con los marcadores en directo.";
+  return h("div", { class: "estim stack" }, head, h("p", { class: "small muted" }, titulo),
+    h("div", { class: "tw" }, h("table", null, h("thead", null, h("tr", null, h("th", null, "Categoría"), h("th", { class: "num" }, "Acertantes"), h("th", { class: "num" }, "Premio estimado"))), h("tbody", null, filas))),
+    h("p", { class: "small muted" }, est.aprox ? "Estimación aproximada: faltan los porcentajes oficiales de lo que ha apostado la gente y se usan las probabilidades de la app. Orientativa; el premio real lo fija Loterías." : "Calculada con los porcentajes de apuestas publicados por Loterías. Orientativa; el premio real lo fija Loterías."));
+}
 function lineaApp(J) {
   const a = escrutinioApp(J); if (!a) return null;
   const ac = a.e.total === 15 ? "14 + pleno" : a.e.best;
@@ -388,6 +466,7 @@ function tarjetaPronostico(J) {
     h("p", { class: "small muted" }, "Cada barra reparte la probabilidad del 1 (verde), la X (gris) y el 2 (azul). Las casillas negras son el boleto propuesto."),
     J.premios ? h("div", { class: "note good small" }, "Premios oficiales por columna: ", ["15", "14", "13", "12", "11", "10"].filter(k => J.premios[k] != null).map(k => `${k === "15" ? "14+P" : k}: ${eur(J.premios[k])}`).join(" · ")) : null,
     L ? avisoDirecto(L) : null,
+    tarjetaEstimacion(J),
     lineaApp(J),
     h("div", null, lines),
     J.fuentes ? h("div", { class: "small muted" }, "Datos: ", J.fuentes.map((u, i) => [i ? " · " : "", h("a", { href: u, target: "_blank", rel: "noopener", style: "color:inherit" }, new URL(u).hostname.replace("www.", ""))])) : null);
@@ -450,7 +529,16 @@ function boletoVista(r0) {
   if (!e || !e.n) return h("div", { class: "stack" }, g);
   S.colsOpen = S.colsOpen || {};
   const k = r0.id || r0.jornada, abierto = !!S.colsOpen[k];
-  return h("div", { class: "stack" }, g, ...resumenEscrutinio(r, e, enDirecto),
+  const J0 = S.jornadas[r0.jornada];
+  let estBoleto = null;
+  if (J0 && !J0.premios && e.n) {
+    const est = estimarPremios(J0, r.resultados, r.pleno_res);
+    if (est && est.cats) {
+      const a = calcPremio(e, premiosPunto(est, "min")), b = calcPremio(e, premiosPunto(est, "max"));
+      if (b > 0) estBoleto = h("p", { class: "small" }, h("b", null, "Premio estimado: "), Math.abs(a - b) < 0.005 ? eur(a) : `${eur(Math.min(a, b))} – ${eur(Math.max(a, b))}`, h("span", { class: "muted" }, enDirecto ? " si acabara ahora" : " (orientativo)"));
+    }
+  }
+  return h("div", { class: "stack" }, g, ...resumenEscrutinio(r, e, enDirecto), estBoleto,
     h("div", { class: "row spread" },
       ap ? h("span", { class: "small muted" }, "El boleto de la app llevaría ", h("b", null, ap.e.total === 15 ? "14 + pleno" : ap.e.best)) : h("span"),
       h("button", { class: "link", onclick: () => { S.colsOpen[k] = !abierto; render(); } }, abierto ? "Ocultar columnas" : "Ver las 16 columnas")),

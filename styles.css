@@ -178,3 +178,4 @@ tr.click:hover td{background:var(--soft)}
 .estado-mini.fin{color:var(--muted)}
 .cols tr.tot td.tot-c{font-weight:700;font-size:1.05rem;padding-bottom:4px}
 .cols tr.tot td.best{background:var(--accent);color:var(--accent-ink);border-radius:3px}
+.estim{border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--paper)}
