@@ -1087,5 +1087,24 @@ function iniciarDirecto() { clearInterval(tDirecto); tDirecto = setInterval(actu
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") actualizarDirecto(); });
 
 /* ---------- inicio ---------- */
-if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => { });
+if ("serviceWorker" in navigator && location.protocol === "https:") {
+  navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then(reg => {
+    reg.update().catch(() => { });
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") reg.update().catch(() => { }); });
+  }).catch(() => { });
+  // Cuando se instala una versión nueva de la app, se recarga sola una vez
+  let recargada = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => { if (recargada) return; recargada = true; if (!M) location.reload(); });
+}
+/* Avisar si hay una versión nueva publicada mientras la app está abierta */
+const VERSION_APP = (document.querySelector('script[src*="app.js"]') || {}).src || "";
+async function comprobarVersion() {
+  try {
+    const html = await fetch("index.html?_=" + Date.now(), { cache: "no-store" }).then(r => r.text());
+    const m = html.match(/app\.js\?v=\d+/);
+    if (m && VERSION_APP && !VERSION_APP.includes(m[0]) && !M) location.reload();
+  } catch (e) { }
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") comprobarVersion(); });
+setInterval(comprobarVersion, 10 * 60e3);
 arrancar();

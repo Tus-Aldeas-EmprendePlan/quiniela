@@ -1,14 +1,12 @@
-// Guarda la app en el móvil para que abra rápido. Los datos siempre se piden frescos.
-const VERSION = "pena-v12";
-const SHELL = ["./", "index.html", "styles.css?v=12", "app.js?v=12", "config.js?v=12", "manifest.webmanifest", "icons/icon-192.png"];
-self.addEventListener("install", e => { e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
+// Guarda la app en el móvil para que abra rápido, pero siempre pide la versión más nueva primero.
+const VERSION = "pena-v13";
+self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== VERSION).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener("fetch", e => {
   const u = new URL(e.request.url);
-  if (e.request.method !== "GET" || u.origin !== location.origin) return;           // Supabase, fuentes, CDN: directo
-  if (u.pathname.includes("/data/")) {                                              // jornadas: red primero
-    e.respondWith(fetch(e.request).then(r => { const c = r.clone(); caches.open(VERSION).then(x => x.put(e.request, c)); return r; }).catch(() => caches.match(e.request)));
-    return;
-  }
-  e.respondWith(fetch(e.request).then(r => { const c = r.clone(); caches.open(VERSION).then(x => x.put(e.request, c)); return r; }).catch(() => caches.match(e.request)));
+  if (e.request.method !== "GET" || u.origin !== location.origin) return;   // Supabase, ESPN, fuentes: directo
+  // Red primero y sin caché del navegador; si no hay conexión, la última copia guardada
+  const req = e.request.mode === "navigate" ? fetch(u.href, { cache: "no-store", credentials: "same-origin" }) : fetch(e.request, { cache: "no-store" });
+  e.respondWith(req.then(r => { if (r.ok) { const c = r.clone(); caches.open(VERSION).then(x => x.put(e.request, c)); } return r; })
+    .catch(() => caches.match(e.request).then(m => m || caches.match("./"))));
 });
