@@ -292,11 +292,11 @@ async function autoEscrutinio() {
       d.resultados = J.resultados.slice(); if (J.plenoRes) d.pleno_res = { ...J.plenoRes };
       const e = escrutar(d); if (!e) continue;
       const en = new Date().toISOString(); const log = [...(r.cambios || [])];
-      if (necesitaRes || r.aciertos == null) { d.aciertos = e.total; log.push({ en, campo: "aciertos", de: r.aciertos ?? null, a: d.aciertos, auto: true }); }
+      if (necesitaRes || r.aciertos == null) { d.aciertos = aciertosPena(d, e); log.push({ en, campo: "aciertos", de: r.aciertos ?? null, a: d.aciertos, auto: true }); }
       if (J.premios && r.premio == null) { d.premio = calcPremio(e, J.premios); log.push({ en, campo: "premio", de: null, a: d.premio, auto: true }); }
       d.estado = J.premios ? "escrutada" : (r.estado === "borrador" ? "sellada" : r.estado);
       d.cambios = log.slice(-40);
-      try { await API.guardar(d); toast(`Jornada ${r.jornada} escrutada: ${e.total === 15 ? "14 + pleno" : e.total} aciertos`); } catch (err) { }
+      try { await API.guardar(d); toast(`Jornada ${r.jornada} escrutada: ${fmtAc(d.aciertos)} aciertos`); } catch (err) { }
     }
     await recargar(); render();
   } finally { autoCorriendo = false; }
@@ -445,7 +445,7 @@ function escrutinioApp(J) {
   if (!resultados || !resultados.some(Boolean)) return null;
   const q = { partidos: J.partidos.map(p => ({ signos: p.sugerido })), pleno: J.pleno, resultados, pleno_res: J.plenoRes || (L && L.pleno && L.pleno.goles) || {} };
   const e = escrutar(q); if (!e) return null;
-  return { e, oficial: !!J.resultados, premio: J.resultados && J.premios && e.completo ? calcPremio(e, J.premios) : null };
+  return { e, base: aciertosPena(q, e), oficial: !!J.resultados, premio: J.resultados && J.premios && e.completo ? calcPremio(e, J.premios) : null };
 }
 function tarjetaEstimacion(J) {
   if (!J.estimacion || !J.estimacion.recaudacion || J.premios) return null;
@@ -469,7 +469,7 @@ function tarjetaEstimacion(J) {
 }
 function lineaApp(J) {
   const a = escrutinioApp(J); if (!a) return null;
-  const ac = a.e.total === 15 ? "14 + pleno" : a.e.best;
+  const ac = fmtAc(a.base);
   return h("div", { class: "note" + (a.oficial ? " good" : "") + " small" }, h("b", null, "Boleto de la app: "),
     a.oficial ? `${ac} aciertos` + (a.premio != null ? ` · habría cobrado ${eur(a.premio)}` : "") : `si acabara ahora, ${ac} aciertos (${a.e.n}/14 con marcador)`);
 }
@@ -557,14 +557,22 @@ function partidosDentro(r) {
   const res = r.resultados || [];
   return r.partidos.reduce((a, p, i) => a + (res[i] && normSigns(p.signos).includes(res[i]) ? 1 : 0), 0);
 }
-function resumenEscrutinio(r, e, enDirecto) {
+/* Aciertos para las estadísticas de la peña: los de la columna base (partidos cuyo resultado
+   está entre los signos jugados), más el pleno si se aciertan los 14. El premio, en cambio,
+   sale de la mejor de las 16 columnas de la reducida, que es lo que paga Loterías. */
+function aciertosPena(r, e) {
   const dentro = partidosDentro(r);
+  return dentro === 14 && e && e.plenoOk ? 15 : dentro;
+}
+const fmtAc = n => n === 15 ? "14 + pleno" : n;
+function resumenEscrutinio(r, e, enDirecto) {
+  const base = aciertosPena(r, e);
   const out = [h("div", { class: "counter" },
     enDirecto ? h("span", { class: "pill live-pill" }, "En directo") : null,
     h("span", null, "Con resultado ", h("b", null, `${e.n}/14`)),
-    h("span", null, "Partidos acertados ", h("b", null, dentro)),
-    h("span", null, enDirecto ? "Cuenta ahora (mejor columna) " : "Cuenta (mejor columna) ", h("b", { class: "ok" }, e.total === 15 ? "14 + pleno" : e.best)))];
-  if (dentro > e.best) out.push(h("p", { class: "small muted" }, `Has acertado ${dentro} partidos, pero en la reducida solo cuenta la mejor de las 16 columnas: ${e.best}. Con 7 dobles no se juegan las 128 combinaciones, así que a veces la combinación de dobles que ha salido no está en ninguna columna.`));
+    h("span", null, enDirecto ? "Aciertos ahora " : "Aciertos ", h("b", { class: "ok" }, fmtAc(base))),
+    h("span", { class: "muted" }, "Mejor columna (para el premio) ", h("b", null, fmtAc(e.total))))];
+  if (base > e.total) out.push(h("p", { class: "small muted" }, `Para la peña cuentan ${fmtAc(base)} aciertos (columna base). Para el premio de Loterías cuenta la mejor de las 16 columnas, que tiene ${fmtAc(e.total)}: con 7 dobles no se juegan las 128 combinaciones y la que ha salido no está en ninguna columna.`));
   return out;
 }
 function boletoVista(r0, compacto) {
@@ -604,7 +612,7 @@ function boletoVista(r0, compacto) {
   }
   return h("div", { class: "stack" }, verBoleto ? g : null, ...resumenEscrutinio(r, e, enDirecto), estBoleto, toggleBoleto,
     h("div", { class: "row spread" },
-      ap ? h("span", { class: "small muted" }, "El boleto de la app llevaría ", h("b", null, ap.e.total === 15 ? "14 + pleno" : ap.e.best)) : h("span"),
+      ap ? h("span", { class: "small muted" }, "El boleto de la app llevaría ", h("b", null, fmtAc(ap.base)), " aciertos") : h("span"),
       h("button", { class: "link", onclick: () => { S.colsOpen[k] = !abierto; render(); } }, abierto ? "Ocultar columnas" : "Ver las 16 columnas")),
     abierto ? tablaColumnas(r, e) : null);
 }
@@ -735,7 +743,7 @@ function tablaColumnas(d, e) {
   for (let i = 0; i < NPART; i++) t.append(h("tr", null, h("th", null, i + 1), orden.map(k => { const s = e.cols[k][i]; const cls = res[i] ? (s === res[i] ? " hit" : " miss") : ""; return h("td", { class: "c" + cls }, s); })));
   return h("div", { class: "stack", style: "gap:6px" }, h("p", { class: "small muted" }, "Columnas ordenadas de más a menos aciertos; encima, el número de cada columna en el boleto. Verde: acierto; rojo: fallo; gris: partido sin resultado todavía."), h("div", { class: "tw" }, t));
 }
-function autoAciertos() { const d = M.draft; const e = escrutar(d); if (e && e.n) d.aciertos = e.total; }
+function autoAciertos() { const d = M.draft; const e = escrutar(d); if (e && e.n) d.aciertos = aciertosPena(d, e); }
 function pegarPartidos() {
   const lines = (M.paste || "").split(/\n+/).map(l => l.replace(/^\s*\d+[\.\)\-\s]+/, "").trim()).filter(Boolean);
   lines.slice(0, 15).forEach((l, i) => {
@@ -827,7 +835,7 @@ function vistaRanking(rows) {
 function contraLaApp(rows) {
   const filas = rows.filter(r => r.aciertos != null && S.jornadas[r.jornada] && S.jornadas[r.jornada].resultados).map(r => {
     const a = escrutinioApp(S.jornadas[r.jornada]);
-    return a ? { r, app: a.e.total, appPremio: a.premio } : null;
+    return a ? { r, app: a.base, appPremio: a.premio } : null;
   }).filter(Boolean);
   if (!filas.length) return h("section", { class: "card stack" }, h("h2", null, "Vosotros contra la app"),
     h("p", { class: "muted small" }, "Aquí se comparará cada quiniela con el boleto que propuso la app, en cuanto haya jornadas con pronóstico y resultados oficiales."));
