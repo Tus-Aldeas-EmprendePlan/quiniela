@@ -13,7 +13,10 @@ CATEG = {2: "14", 3: "13", 4: "12", 5: "11", 6: "10", 1: "15"}
 
 def bajar(ini, fin):
     url = API.format(ini=ini.strftime("%Y%m%d"), fin=fin.strftime("%Y%m%d"))
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (quiniela de la peña)", "Accept": "application/json"})
+    req = urllib.request.Request(url, headers={
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*", "Accept-Language": "es-ES,es;q=0.9",
+        "Referer": "https://www.loteriasyapuestas.es/es/la-quiniela"})
     with urllib.request.urlopen(req, timeout=30) as r:
         return json.loads(r.read().decode("utf-8"))
 
@@ -91,4 +94,8 @@ if __name__ == "__main__":
         else:
             main()
     except Exception as ex:
-        print(f"Error leyendo Loterías: {ex}"); sys.exit(1)
+        detalle = ""
+        if hasattr(ex, "read"):
+            try: detalle = ex.read()[:200].decode("utf-8", "replace").replace("\n", " ")
+            except Exception: pass
+        print(f"::error::Error leyendo Loterías: {ex!r} {detalle}"); sys.exit(1)
