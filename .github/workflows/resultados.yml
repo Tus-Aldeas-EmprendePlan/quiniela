@@ -1,0 +1,33 @@
+name: Resultados y premios de la jornada
+on:
+  schedule:
+    - cron: "43 22 * * 0,1,2"   # domingo, lunes y martes a las 23:43 en invierno (00:43 en verano)
+    - cron: "13 9 * * 1,2,3"    # lunes, martes y miércoles a las 10:13 en invierno (por si los premios salen tarde)
+  workflow_dispatch:
+  push:
+    paths: [scripts/resultados.py, .github/workflows/resultados.yml]
+permissions:
+  contents: write
+jobs:
+  resultados:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prueba de conexión con Loterías
+        if: github.event_name == 'push'
+        run: python3 scripts/resultados.py --prueba
+      - name: Resultados y premios oficiales
+        if: github.event_name != 'push'
+        run: python3 scripts/resultados.py
+      - run: python3 scripts/validar.py
+      - name: Guardar cambios
+        run: |
+          if [ -n "$(git status --porcelain data)" ]; then
+            git config user.name "quiniela-bot"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add data
+            git commit -m "Resultados y premios oficiales (Loterías y Apuestas del Estado)"
+            git push
+          else
+            echo "Sin cambios"
+          fi
