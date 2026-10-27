@@ -48,3 +48,11 @@ Cada `data/<id>.json` tiene:
 
 Cuando un archivo trae `resultados` (y `premios`), la app escruta sola la quiniela
 de esa jornada al abrirla quien la jugó.
+
+## Automatizaciones (GitHub Actions)
+
+- `resultados.yml` + `scripts/resultados.py`: domingos, lunes y martes por la noche (y a la mañana siguiente)
+  rellena `resultados`, `plenoRes` y `premios` de la jornada terminada con el escrutinio oficial
+  (vía la API de Eduardo Losilla; la web de Loterías bloquea a los servidores de GitHub).
+- `estimacion.yml` + `scripts/estimacion.py`: domingos, datos para la estimación de premios.
+- `validar.yml`: comprueba los datos en cada cambio.
