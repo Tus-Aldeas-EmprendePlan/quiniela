@@ -157,7 +157,7 @@ const bodyOf = r => { const b = {}; for (const k of CAMPOS) if (k in r) b[k] = r
 const Real = {
   sb: null,
   init() { this.sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true } }); },
-  async session() { const { data } = await this.sb.auth.getSession(); return data.session; },
+  async session() { const { data, error } = await this.sb.auth.getSession(); if (error && !data.session && (error.name === "AuthRetryableFetchError" || !error.status)) throw error; return data.session; },  // error de red: no es «sin sesión»
   async login(usuario, pass) {
     const u = usuario.trim().toLowerCase();
     const email = u.includes("@") ? u : `${u}@${CFG.dominio}`;
@@ -168,6 +168,7 @@ const Real = {
   async cambiarPass(p) { const { error } = await this.sb.auth.updateUser({ password: p }); if (error) throw error; },
   async cargar() {
     const ses = await this.session();
+    if (!ses) { const e = new Error("sin sesión"); e.sinSesion = true; throw e; }
     const [j, q] = await Promise.all([
       this.sb.from("jugadores").select("nombre,usuario,orden,admin,user_id").order("orden"),
       this.sb.from("quinielas").select("*").eq("temporada", TEMP).order("jornada")
@@ -240,11 +241,12 @@ function turno(rows) {
 async function arrancar() {
   try { API.init(); } catch (e) { S.fase = "error"; S.msg = "No se pudo conectar. Revisa config.js."; render(); return; }
   cargarJornadas();
-  const ses = await API.session().catch(() => null);
-  if (!ses) { S.fase = "login"; render(); return; }
+  let ses = await API.session().catch(() => undefined);
+  if (ses === undefined) { await new Promise(r => setTimeout(r, 2000)); ses = await API.session().catch(() => undefined); }
+  if (ses === null) { S.fase = "login"; render(); return; }
   await entrar();
 }
-async function entrar() {
+async function entrar(intento = 0) {
   S.fase = "carga"; render();
   try {
     await recargar();
@@ -253,7 +255,14 @@ async function entrar() {
     API.suscribir(() => programarRecarga());
     iniciarDirecto();
     autoEscrutinio();
-  } catch (e) { S.fase = "login"; S.loginErr = "No se pudieron cargar los datos. Comprueba la conexión."; render(); }
+  } catch (e) {
+    // Al despertar el móvil la conexión o la renovación de la sesión pueden tardar unos segundos: se reintenta
+    // antes de pedir usuario y contraseña, y nunca se cierra la sesión por un fallo de conexión.
+    const ses = await API.session().catch(() => undefined);
+    if (ses === null) { S.fase = "login"; S.loginErr = null; render(); return; }
+    if (intento < 4) { setTimeout(() => entrar(intento + 1), 1500 * (intento + 1)); return; }
+    S.fase = "error"; S.msg = "No se pudieron cargar los datos. Comprueba la conexión y vuelve a abrir la app."; render();
+  }
 }
 async function recargar() {
   const d = await API.cargar();
@@ -308,7 +317,7 @@ const TABS = [["jornada", "Jornada"], ["ranking", "Ranking"], ["historico", "His
 function render() {
   const app = document.getElementById("app");
   if (S.fase === "carga") { app.replaceChildren(h("div", { class: "login" }, h("p", { class: "muted" }, "Cargando la peña…"))); return; }
-  if (S.fase === "error") { app.replaceChildren(h("div", { class: "login" }, h("div", { class: "card" }, h("h2", null, "Algo no va bien"), h("p", null, S.msg)))); return; }
+  if (S.fase === "error") { app.replaceChildren(h("div", { class: "login" }, h("div", { class: "card" }, h("h2", null, "Algo no va bien"), h("p", null, S.msg), h("button", { class: "btn go", onclick: () => location.reload() }, "Reintentar")))); return; }
   if (S.fase === "login") { app.replaceChildren(vistaLogin()); return; }
 
   const head = h("header", { class: "top" },
@@ -1185,7 +1194,15 @@ if ("serviceWorker" in navigator && location.protocol === "https:") {
   }).catch(() => { });
   // Cuando se instala una versión nueva de la app, se recarga sola una vez
   let recargada = false;
-  navigator.serviceWorker.addEventListener("controllerchange", () => { if (recargada) return; recargada = true; if (!M) location.reload(); });
+  navigator.serviceWorker.addEventListener("controllerchange", () => { if (recargada) return; recargada = true; if (!M) recargarSeguro(); });
+}
+/* Recargar sin cortar la renovación de la sesión: al volver al móvil tras un rato, la sesión se renueva;
+   si la página se recarga justo en ese momento, el servidor da la sesión por usada y pide entrar otra vez. */
+let recargando = false;
+async function recargarSeguro() {
+  if (recargando) return; recargando = true;
+  try { await new Promise(r => setTimeout(r, 1500)); await API.session(); } catch (e) { }
+  location.reload();
 }
 /* Avisar si hay una versión nueva publicada mientras la app está abierta */
 const VERSION_APP = (document.querySelector('script[src*="app.js"]') || {}).src || "";
@@ -1193,7 +1210,7 @@ async function comprobarVersion() {
   try {
     const html = await fetch("index.html?_=" + Date.now(), { cache: "no-store" }).then(r => r.text());
     const m = html.match(/app\.js\?v=\d+/);
-    if (m && VERSION_APP && !VERSION_APP.includes(m[0]) && !M) location.reload();
+    if (m && VERSION_APP && !VERSION_APP.includes(m[0]) && !M) recargarSeguro();
   } catch (e) { }
 }
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") comprobarVersion(); });
