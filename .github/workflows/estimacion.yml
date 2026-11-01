@@ -1,8 +1,13 @@
 name: Datos para la estimación de premios
 on:
   schedule:
-    - cron: "13 9,16 * * 0"   # domingos 10:13 y 17:13 en horario de invierno (11:13 y 18:13 en verano)
+    - cron: "13 9,13,16,19 * * 0"   # domingos 10:13, 14:13, 17:13 y 20:13 en invierno: datos de la estimación de premios
+    - cron: "13 7,13 * * 6"         # sábados 8:13 y 14:13: datos de la estimación (jornadas de sábado) y apuestas del público
+    - cron: "13 18 * * 5"           # viernes 19:13: apuestas del público antes del cierre
+    - cron: "43 8 * * 4"            # jueves 9:43: apuestas del público tras el pronóstico
   workflow_dispatch:
+  push:
+    paths: [scripts/estimacion.py, .github/workflows/estimacion.yml]
 permissions:
   contents: write
 jobs:

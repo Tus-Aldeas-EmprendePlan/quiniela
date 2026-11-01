@@ -495,10 +495,29 @@ function proximaCalendario(t) {
       : h("p", { class: "muted" }, `Cuando ${pname(t.next)} la rellene, la verás aquí. Mientras tanto puedes mirar el pronóstico.`))];
 }
 
+/* ---------- valor: signos que la gente apuesta mucho menos de lo que creemos probable ---------- */
+function publicoDe(J, i) {
+  const q = J.estimacion && J.estimacion.porcentajes && J.estimacion.porcentajes[i];
+  if (q) return { "1": +q["1"], "X": +q["X"], "2": +q["2"] };
+  const m = [...String(J.partidos[i].publico || "").matchAll(/([1X2])\s*(\d+)\s*%/g)];
+  if (m.length !== 3) return null;
+  const o = {}; m.forEach(x => o[x[1]] = +x[2]); return o;
+}
+function valorJornada(J) {
+  const c = [];
+  J.partidos.forEach((p, i) => {
+    const pub = publicoDe(J, i); if (!pub) return;
+    const pr = { "1": p.p1, "X": p.pX, "2": p.p2 };
+    for (const s of SIGNS) if (pr[s] >= 20 && pub[s] > 0 && pr[s] / pub[s] >= 1.5) c.push({ i, s, p: pr[s], pub: pub[s], r: pr[s] / pub[s] });
+  });
+  return c.sort((a, b) => b.r - a.r).slice(0, 3);
+}
 function tarjetaPronostico(J) {
   const conf = { alta: "fijo seguro", media: "favorito", baja: "abierto" };
   const res = J.resultados || [];
   const L = J.resultados ? null : S.live[J.jornada];
+  const VAL = valorJornada(J);
+  const valDe = i => VAL.filter(v => v.i === i);
   const lines = J.partidos.map((p, i) => h("div", { class: "pr" },
     h("div", { class: "n" }, i + 1),
     h("div", { class: "m" },
@@ -511,7 +530,8 @@ function tarjetaPronostico(J) {
         res[i] ? [h("span", { class: "sep" }), h("span", { class: "box res on", title: "Resultado" }, res[i])]
           : (L && L.items[i] && L.items[i].signo) ? [h("span", { class: "sep" }), h("span", { class: "box res live " + (p.sugerido.includes(L.items[i].signo) ? "ok" : "ko"), title: "Resultado provisional" }, L.items[i].signo)] : null),
       h("span", { class: "pill cf-" + p.confianza }, conf[p.confianza] || p.confianza)),
-    h("div", { class: "sub" }, p.nota, p.publico ? " Apuestas de la gente: " + p.publico + "." : "")));
+    h("div", { class: "sub" }, p.nota, p.publico ? " Apuestas de la gente: " + p.publico + "." : "",
+      valDe(i).map(v => h("span", { class: "valor" }, ` Valor en el ${v.s}: lo vemos al ${v.p} % y la gente solo lo apuesta al ${v.pub} %.`)))));
   const pl = J.pleno, plr = J.plenoRes;
   lines.push(h("div", { class: "pr p15" },
     h("div", { class: "n" }, "15"),
@@ -526,6 +546,9 @@ function tarjetaPronostico(J) {
     h("p", { class: "small muted" }, "Cada barra reparte la probabilidad del 1 (verde), la X (gris) y el 2 (azul). Las casillas negras son el boleto propuesto."),
     J.premios ? h("div", { class: "note good small" }, "Premios oficiales por columna: ", ["15", "14", "13", "12", "11", "10"].filter(k => J.premios[k] != null).map(k => `${k === "15" ? "14+P" : k}: ${eur(J.premios[k])}`).join(" · ")) : null,
     L ? avisoDirecto(L) : null,
+    VAL.length && !J.resultados ? h("div", { class: "note small" }, h("b", null, "Dónde hay valor: "),
+      VAL.map(v => `${v.i + 1}. ${J.partidos[v.i].local} – ${J.partidos[v.i].visitante} (${v.s})`).join(" · "),
+      ". Son signos que la gente apuesta mucho menos de lo probable: no hacen el boleto más fácil de acertar, pero si salen el premio se reparte entre menos y paga más. Útiles para decidir un doble dudoso.") : null,
     tarjetaEstimacion(J),
     lineaApp(J),
     h("div", null, lines),
@@ -829,6 +852,7 @@ function vistaRanking(rows) {
   return [kp,
     h("section", { class: "card stack" }, h("h2", null, "Clasificación"), h("p", { class: "muted small" }, "Ordenada por media de aciertos, que es justa aunque no todos hayáis jugado las mismas jornadas."), h("div", { class: "tw" }, tbl)),
     contraLaApp(rows),
+    balanceTemporada(rows),
     h("section", { class: "card stack" }, h("div", { class: "row spread" }, h("h2", null, "Aciertos por jornada"), h("div", { class: "row" }, orden().map(id => playerDot(id)))), grafico(esc),
       mediaP != null ? h("span", { class: "muted small" }, `Media de la peña: ${num1(mediaP)} aciertos`) : null)];
 }
@@ -848,6 +872,44 @@ function contraLaApp(rows) {
       h("tbody", null, filas.slice().reverse().map(f => h("tr", null, h("td", { class: "rank" }, f.r.jornada), h("td", null, playerDot(f.r.jugador)),
         h("td", { class: "num " + gana(f.r.aciertos, f.app) }, h("b", null, f.r.aciertos)), h("td", { class: "num " + gana(f.app, f.r.aciertos) }, f.app),
         h("td", { class: "num" }, eur(f.r.premio || 0)), h("td", { class: "num" }, f.appPremio == null ? "—" : eur(f.appPremio))))))));
+}
+/* Balance de la temporada: lo gastado y lo ganado, jornada a jornada, la peña y el boleto de la app */
+function balanceTemporada(rows) {
+  const jug = rows.filter(r => r.estado !== "borrador").sort((a, b) => a.jornada - b.jornada);
+  if (!jug.length) return null;
+  let accP = 0, accA = 0, gastA = 0, cobA = 0, nA = 0;
+  const puntos = jug.map(r => {
+    accP += (r.premio || 0) - (r.coste ?? COSTE);
+    const J = S.jornadas[r.jornada], a = J && J.resultados && J.premios ? escrutinioApp(J) : null;
+    if (a && a.premio != null) { nA++; gastA += COSTE; cobA += a.premio; accA += a.premio - COSTE; }
+    return { j: r.jornada, p: round2(accP), a: a && a.premio != null ? round2(accA) : null };
+  });
+  const gast = jug.reduce((x, r) => x + (r.coste ?? COSTE), 0), cob = jug.reduce((x, r) => x + (r.premio || 0), 0);
+  const sig = v => h("span", { class: v >= 0 ? "ok" : "bad" }, (v > 0 ? "+" : "") + eur(v));
+  const W = 640, H = 220, L = 56, R = 12, T = 16, B = 30;
+  const vals = puntos.flatMap(x => [x.p, x.a]).filter(v => v != null).concat([0]);
+  const lo = Math.min(...vals), hi = Math.max(...vals), span = (hi - lo) || 1;
+  const X = i => L + (W - L - R) * (puntos.length > 1 ? i / (puntos.length - 1) : .5), Y = v => T + (H - T - B) * (1 - (v - lo) / span);
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (t, a, txt) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (txt != null) e.textContent = txt; return e; };
+  const svg = el("svg", { class: "chart", viewBox: `0 0 ${W} ${H}`, width: "100%", role: "img", "aria-label": "Balance acumulado de la temporada" });
+  const g = el("g", { class: "grid" }); svg.append(g);
+  [lo, (lo + hi) / 2, hi].forEach(v => { g.append(el("line", { x1: L, x2: W - R, y1: Y(v), y2: Y(v) })); g.append(el("text", { x: L - 6, y: Y(v) + 4, "text-anchor": "end" }, Math.round(v) + " €")); });
+  svg.append(el("line", { x1: L, x2: W - R, y1: Y(0), y2: Y(0), style: "stroke:var(--muted);stroke-width:1.5" }));
+  const linea = (k, color, dash) => {
+    const pts = puntos.map((x, i) => x[k] == null ? null : `${X(i)},${Y(x[k])}`).filter(Boolean);
+    if (pts.length > 1) svg.append(el("polyline", { points: pts.join(" "), fill: "none", style: `stroke:${color};stroke-width:2.5${dash ? ";stroke-dasharray:6 4" : ""}` }));
+    puntos.forEach((x, i) => { if (x[k] != null) { const c = el("circle", { cx: X(i), cy: Y(x[k]), r: 3.5, style: `fill:${color}` }); c.append(el("title", {}, `J${x.j} · ${k === "p" ? "Peña" : "App"}: ${eur(x[k])}`)); svg.append(c); } });
+  };
+  linea("p", "var(--accent)"); linea("a", "var(--muted)", true);
+  puntos.forEach((x, i) => svg.append(el("text", { x: X(i), y: H - 8, "text-anchor": "middle" }, "J" + x.j)));
+  return h("section", { class: "card stack" },
+    h("h2", null, "Balance de la temporada"),
+    h("div", { class: "kpis" },
+      kpi("Recuperado", gast ? Math.round(100 * cob / gast) + " %" : "—", `${eur(cob)} cobrados de ${eur(gast)} jugados`),
+      kpi("Con el boleto de la app", nA ? sig(round2(cobA - gastA)) : "—", nA ? `En ${nA} jornada${nA > 1 ? "s" : ""}: ${eur(cobA)} cobrados de ${eur(gastA)}` : "Cuando haya jornadas con pronóstico y premios")),
+    h("div", { class: "row small muted" }, h("span", { class: "ok" }, "━ Peña"), h("span", null, "╍ Si hubierais jugado siempre el boleto de la app"), h("span", null, "· Balance acumulado (premios − gastos)")),
+    h("div", { class: "tw" }, svg));
 }
 function grafico(rows) {
   if (!rows.length) return h("div", { class: "empty" }, "Aún no hay jornadas escrutadas.");
@@ -924,15 +986,19 @@ function vistaReparto(rows) {
   for (const p of pay) for (const r of rec) { if (p.d <= 0.004) break; if (r.d <= 0.004) continue; const x = round2(Math.min(p.d, r.d)); moves.push({ de: p.id, a: r.id, x }); p.d -= x; r.d -= x; }
   return [h("section", { class: "card stack" },
     h("h2", null, "Reparto de fin de temporada"),
-    h("p", { class: "muted small" }, "Cada uno se queda sus premios durante la temporada y al final se reparte el total a partes iguales."),
+    h("p", { class: "muted small" }, "Cada uno paga sus boletos y se queda sus premios durante la temporada; al final se junta el total de premios y se reparte a partes iguales. Los gastos no se reparten. «Resultado final» es lo que gana o pierde cada uno en la temporada: lo que le corresponde del reparto menos lo que ha invertido en sus boletos."),
     h("div", { class: "kpis" }, kpi("Premios acumulados", eur(total), "Toda la peña"), kpi("Le toca a cada uno", eur(cuota), `Total entre ${n}`)),
-    h("div", { class: "tw" }, h("table", null, h("thead", null, h("tr", null, h("th", null, "Jugador"), h("th", { class: "num" }, "Tiene cobrado"), h("th", { class: "num" }, "Le corresponde"), h("th", { class: "num" }, "Diferencia"), h("th", { class: "num" }, "Ha invertido"))),
+    h("div", { class: "tw" }, h("table", null, h("thead", null, h("tr", null, h("th", null, "Jugador"), h("th", { class: "num" }, "Tiene cobrado"), h("th", { class: "num" }, "Le corresponde"), h("th", { class: "num" }, "Diferencia"), h("th", { class: "num" }, "Ha invertido"), h("th", { class: "num" }, "Resultado final"))),
       h("tbody", null, st.map(s => {
         const df = s.cobrado - cuota; return h("tr", null, h("td", null, playerDot(s.id)), h("td", { class: "num" }, eur(s.cobrado)), h("td", { class: "num" }, eur(cuota)),
-          h("td", { class: "num " + (df > 0.004 ? "bad" : df < -0.004 ? "ok" : "") }, (df > 0.004 ? "debe dar " : df < -0.004 ? "recibe " : "") + eur(Math.abs(df))), h("td", { class: "num" }, eur(s.invertido)));
+          h("td", { class: "num " + (df > 0.004 ? "bad" : df < -0.004 ? "ok" : "") }, (df > 0.004 ? "debe dar " : df < -0.004 ? "recibe " : "") + eur(Math.abs(df))), h("td", { class: "num" }, eur(s.invertido)),
+          h("td", { class: "num " + (cuota - s.invertido >= 0 ? "ok" : "bad") }, h("b", null, (cuota - s.invertido > 0 ? "+" : "") + eur(round2(cuota - s.invertido)))));
       })))),
     h("div", { class: "stack", style: "gap:6px" }, h("span", { class: "label" }, "Si la temporada acabara hoy"),
-      moves.length ? moves.map(m => h("div", { class: "row" }, playerDot(m.de), h("span", null, "le da"), h("b", null, eur(m.x)), h("span", null, "a"), playerDot(m.a))) : h("span", { class: "muted" }, "Nadie debe nada a nadie.")))];
+      moves.length ? moves.map(m => h("div", { class: "row" }, playerDot(m.de), h("span", null, "le da"), h("b", null, eur(m.x)), h("span", null, "a"), playerDot(m.a))) : h("span", { class: "muted" }, "Nadie debe nada a nadie.")),
+    h("div", { class: "stack", style: "gap:6px" }, h("span", { class: "label" }, "Cómo acaba la temporada cada uno (si acabara hoy)"),
+      st.map(s => { const r = round2(cuota - s.invertido); return h("div", { class: "row" }, playerDot(s.id), h("b", { class: r >= 0 ? "ok" : "bad" }, (r > 0 ? "+" : "") + eur(r)),
+        h("span", { class: "muted small" }, `${eur(cuota)} del reparto − ${eur(s.invertido)} en boletos`)); })))];
 }
 
 /* ---------- menú: contraseña, instalar, ayuda, salir ---------- */
@@ -949,8 +1015,20 @@ function abrirMenu() {
     item("Cómo funciona", "Explicado paso a paso, sin tecnicismos", abrirAyuda),
     item("Instalar en el móvil", "Para tenerla como una app más en la pantalla", abrirInstalar),
     DEMO ? null : item("Cambiar mi contraseña", "Pon una que te acuerdes", abrirPass),
+    item("Copia de seguridad", "Descarga todas las quinielas de la temporada (Excel y copia completa)", descargarCopia),
     item("Salir", S.yo ? `Cerrar la sesión de ${pname(S.yo)}` : "Cerrar sesión", async () => { cerrarModal(); await API.logout(); S.yo = null; S.fase = "login"; render(); }),
     h("p", { class: "small muted", style: "text-align:center" }, "Versión " + ((VERSION_APP.match(/v=(\d+)/) || [])[1] || "?") + " · " + location.host)));
+}
+function descargarCopia() {
+  const baja = (nombre, tipo, txt) => { const a = h("a", { href: URL.createObjectURL(new Blob([txt], { type: tipo })), download: nombre }); document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); };
+  const hoy = isoHoy(), t = TEMP.replace("/", "-");
+  const csvc = v => { const x = v == null ? "" : String(v); return /[;"\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };
+  const cab = ["temporada", "jornada", "fecha", "jugador", "estado", "aciertos", "premio", "coste", "signos", "pleno", "resultados", "nota"];
+  const filas = S.rows.map(r => [r.temporada, r.jornada, r.fecha, pname(r.jugador), r.estado, r.aciertos, r.premio == null ? "" : String(r.premio).replace(".", ","), String(r.coste ?? COSTE).replace(".", ","),
+    (r.partidos || []).map(p => p.signos).join(" "), r.pleno ? `${r.pleno.l}-${r.pleno.v}` : "", (r.resultados || []).join(" "), r.nota]);
+  baja(`quiniela-pena_${t}_${hoy}.csv`, "text/csv;charset=utf-8", "\ufeff" + [cab, ...filas].map(f => f.map(csvc).join(";")).join("\r\n"));
+  setTimeout(() => baja(`quiniela-pena_${t}_${hoy}.json`, "application/json", JSON.stringify({ exportado: new Date().toISOString(), temporada: TEMP, jugadores: S.jugadores, quinielas: S.rows }, null, 1)), 400);
+  toast("Copia descargada: guárdala en tu móvil, ordenador o nube");
 }
 function abrirPass() {
   let p1 = "", p2 = ""; let err = null;

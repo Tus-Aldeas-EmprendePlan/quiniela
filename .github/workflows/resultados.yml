@@ -2,7 +2,8 @@ name: Resultados y premios de la jornada
 on:
   schedule:
     - cron: "43 22 * * 0,1,2"   # domingo, lunes y martes a las 23:43 en invierno (00:43 en verano)
-    - cron: "13 9 * * 1,2,3"    # lunes, martes y miércoles a las 10:13 en invierno (por si los premios salen tarde)
+    - cron: "13 9,15 * * 1,2,3" # lunes, martes y miércoles a las 10:13 y 16:13 (por si los premios salen tarde
+                                #  o GitHub retrasa una ejecución)
   workflow_dispatch:
   push:
     paths: [scripts/resultados.py, .github/workflows/resultados.yml]

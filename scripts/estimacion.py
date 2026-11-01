@@ -50,6 +50,34 @@ def estimacion_de(estado, oficial):
     est["actualizado"] = datetime.datetime.now(MADRID).strftime("%Y-%m-%dT%H:%M")
     return est
 
+API_PROB = "https://api.eduardolosilla.es/probabilidades?num_jornada={j}&num_temporada={t}"
+
+def actualizar_publico(idx, ahora):
+    """Antes del cierre: pone en cada partido lo que lleva apostado la gente (porcentajes LAE)
+    para que la app pueda señalar dónde hay valor."""
+    for e in idx.get("jornadas", []):
+        if e.get("conResultados"): continue
+        p = DATA / f"{e['id']}.json"; d = json.loads(p.read_text(encoding="utf-8"))
+        if (d.get("cierre") or "0000") <= ahora: continue
+        url = API_PROB.format(j=d["jornadaOficial"], t=int(d["temporada"][:4]) + 1)
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130.0 Safari/537.36",
+                                                       "Origin": "https://www.eduardolosilla.es", "Referer": "https://www.eduardolosilla.es/"})
+            prob = json.loads(urllib.request.urlopen(req, timeout=30).read().decode("utf-8"))
+        except Exception as ex:
+            print(f"{p.name}: no se pudieron leer los porcentajes del público ({ex!r})"); continue
+        if str(prob.get("numJornada")) != str(d["jornadaOficial"]):
+            print(f"{p.name}: Losilla aún no tiene porcentajes de la jornada {d['jornadaOficial']}"); continue
+        filas = {int(x["numero"]): x for x in ((prob.get("partidos") or {}).get("lae") or [])}
+        if not all(i in filas for i in range(1, 15)):
+            print(f"{p.name}: porcentajes del público incompletos"); continue
+        for i, part in enumerate(d["partidos"], 1):
+            f = filas[i]
+            part["publico"] = f"1 {int(f['porc_1'])}% · X {int(f['porc_X'])}% · 2 {int(f['porc_2'])}%"
+        d["publicoActualizado"] = datetime.datetime.now(MADRID).strftime("%Y-%m-%dT%H:%M")
+        p.write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
+        print(f"{p.name}: porcentajes del público actualizados")
+
 def main(html=None):
     idx = json.loads((DATA / "jornadas.json").read_text(encoding="utf-8"))
     ahora = datetime.datetime.now(MADRID).strftime("%Y-%m-%dT%H:%M")
@@ -60,6 +88,8 @@ def main(html=None):
         if (d.get("cierre") or "9999") > ahora: continue
         if (d.get("estimacion") or {}).get("definitiva"): continue
         pendientes.append((p, d))
+    if html is None:
+        actualizar_publico(idx, ahora)
     if html is None:
         req = urllib.request.Request(URL, headers={"User-Agent": "Mozilla/5.0 (compatible; quiniela-pena/1.0)", "Accept-Language": "es-ES"})
         html = urllib.request.urlopen(req, timeout=30).read().decode("utf-8", "replace")

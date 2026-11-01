@@ -203,3 +203,4 @@ tr.click:hover td{background:var(--soft)}
 .lp-real.ko{background:var(--bad-soft);color:var(--bad)}
 .lp-real.prov{outline:1.5px dashed currentColor;outline-offset:-3px}
 @media (min-width:600px){.lp-row{font-size:.92rem}.lp-head,.lp-row{grid-template-columns:24px minmax(0,1fr) 48px minmax(0,1fr) 54px 80px 40px;gap:8px}}
+.pr .sub .valor{color:var(--accent);font-weight:600}
