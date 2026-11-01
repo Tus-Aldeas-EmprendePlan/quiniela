@@ -980,25 +980,23 @@ function vistaHistorico(rows) {
 /* ---------- Reparto ---------- */
 function vistaReparto(rows) {
   const st = stats(rows); const total = round2(st.reduce((a, s) => a + s.cobrado, 0)); const n = st.length || 1; const cuota = total / n;
+  const gastoTotal = st.reduce((a, s) => a + s.invertido, 0);
   const pay = st.map(s => ({ id: s.id, d: round2(s.cobrado - cuota) })).filter(b => b.d > 0);
   const rec = st.map(s => ({ id: s.id, d: round2(cuota - s.cobrado) })).filter(b => b.d > 0);
   const moves = [];
   for (const p of pay) for (const r of rec) { if (p.d <= 0.004) break; if (r.d <= 0.004) continue; const x = round2(Math.min(p.d, r.d)); moves.push({ de: p.id, a: r.id, x }); p.d -= x; r.d -= x; }
   return [h("section", { class: "card stack" },
     h("h2", null, "Reparto de fin de temporada"),
-    h("p", { class: "muted small" }, "Cada uno paga sus boletos y se queda sus premios durante la temporada; al final se junta el total de premios y se reparte a partes iguales. Los gastos no se reparten. «Resultado final» es lo que gana o pierde cada uno en la temporada: lo que le corresponde del reparto menos lo que ha invertido en sus boletos."),
+    h("p", { class: "muted small" }, "Cada uno paga sus boletos y se queda sus premios durante la temporada; al final se junta el total de premios y se reparte a partes iguales. "),
     h("div", { class: "kpis" }, kpi("Premios acumulados", eur(total), "Toda la peña"), kpi("Le toca a cada uno", eur(cuota), `Total entre ${n}`)),
-    h("div", { class: "tw" }, h("table", null, h("thead", null, h("tr", null, h("th", null, "Jugador"), h("th", { class: "num" }, "Tiene cobrado"), h("th", { class: "num" }, "Le corresponde"), h("th", { class: "num" }, "Diferencia"), h("th", { class: "num" }, "Ha invertido"), h("th", { class: "num" }, "Resultado final"))),
+    h("div", { class: "tw" }, h("table", null, h("thead", null, h("tr", null, h("th", null, "Jugador"), h("th", { class: "num" }, "Tiene cobrado"), h("th", { class: "num" }, "Le corresponde"), h("th", { class: "num" }, "Diferencia"))),
       h("tbody", null, st.map(s => {
         const df = s.cobrado - cuota; return h("tr", null, h("td", null, playerDot(s.id)), h("td", { class: "num" }, eur(s.cobrado)), h("td", { class: "num" }, eur(cuota)),
-          h("td", { class: "num " + (df > 0.004 ? "bad" : df < -0.004 ? "ok" : "") }, (df > 0.004 ? "debe dar " : df < -0.004 ? "recibe " : "") + eur(Math.abs(df))), h("td", { class: "num" }, eur(s.invertido)),
-          h("td", { class: "num " + (cuota - s.invertido >= 0 ? "ok" : "bad") }, h("b", null, (cuota - s.invertido > 0 ? "+" : "") + eur(round2(cuota - s.invertido)))));
+          h("td", { class: "num " + (df > 0.004 ? "bad" : df < -0.004 ? "ok" : "") }, (df > 0.004 ? "debe dar " : df < -0.004 ? "recibe " : "") + eur(Math.abs(df))));
       })))),
     h("div", { class: "stack", style: "gap:6px" }, h("span", { class: "label" }, "Si la temporada acabara hoy"),
       moves.length ? moves.map(m => h("div", { class: "row" }, playerDot(m.de), h("span", null, "le da"), h("b", null, eur(m.x)), h("span", null, "a"), playerDot(m.a))) : h("span", { class: "muted" }, "Nadie debe nada a nadie.")),
-    h("div", { class: "stack", style: "gap:6px" }, h("span", { class: "label" }, "Cómo acaba la temporada cada uno (si acabara hoy)"),
-      st.map(s => { const r = round2(cuota - s.invertido); return h("div", { class: "row" }, playerDot(s.id), h("b", { class: r >= 0 ? "ok" : "bad" }, (r > 0 ? "+" : "") + eur(r)),
-        h("span", { class: "muted small" }, `${eur(cuota)} del reparto − ${eur(s.invertido)} en boletos`)); })))];
+    h("p", { class: "muted small" }, `Como todos jugáis las mismas jornadas, al final cada uno habrá gastado lo mismo. Si la temporada acabara hoy, la peña llevaría ${eur(round2(total - gastoTotal))} de balance: ${eur(round2((total - gastoTotal) / n))} por cabeza.`))];
 }
 
 /* ---------- menú: contraseña, instalar, ayuda, salir ---------- */
