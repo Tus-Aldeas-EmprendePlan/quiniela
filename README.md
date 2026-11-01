@@ -54,5 +54,8 @@ de esa jornada al abrirla quien la jugó.
 - `resultados.yml` + `scripts/resultados.py`: domingos, lunes y martes por la noche (y a la mañana siguiente)
   rellena `resultados`, `plenoRes` y `premios` de la jornada terminada con el escrutinio oficial
   (vía la API de Eduardo Losilla; la web de Loterías bloquea a los servidores de GitHub).
-- `estimacion.yml` + `scripts/estimacion.py`: domingos, datos para la estimación de premios.
+- `estimacion.yml` + `scripts/estimacion.py`: jueves, viernes y sábado pone en cada partido lo que apuesta la gente
+  (porcentajes LAE, para el indicador de valor); tras el cierre, datos para la estimación de premios.
+- `despertar.yml` + `scripts/despertar.py`: lunes y jueves hace una consulta mínima a Supabase para que el plan
+  gratis no pause la base de datos (se pausa tras 7 días sin uso). La copia de seguridad se descarga desde el Menú.
 - `validar.yml`: comprueba los datos en cada cambio.
