@@ -149,6 +149,18 @@ function calcPremio(e, premios) {
   return round2(t);
 }
 
+/* ---------- diagnóstico: registro breve de sesión (solo en este móvil) ---------- */
+function diag(ev) {
+  try {
+    const k = "pena-diag", a = JSON.parse(localStorage.getItem(k) || "[]");
+    a.push(new Date().toISOString().slice(5, 19).replace("T", " ") + " " + ev); localStorage.setItem(k, JSON.stringify(a.slice(-40)));
+  } catch (e) { }
+}
+function informeDiag() {
+  let a = []; try { a = JSON.parse(localStorage.getItem("pena-diag") || "[]"); } catch (e) { a = ["(sin almacenamiento: " + e.name + ")"]; }
+  const pwa = (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone ? "app instalada" : "navegador";
+  return [`Quiniela · ${(VERSION_APP.match(/v=(\d+)/) || [])[1] || "?"} · ${pwa}`, navigator.userAgent, ...a].join("\n");
+}
 /* ---------- capa de datos ---------- */
 const toRow = r => ({ ...r, resultados: r.resultados || null, pleno_res: r.pleno_res || null, premio: r.premio == null ? null : Number(r.premio), coste: r.coste == null ? COSTE : Number(r.coste), fecha: r.fecha ? String(r.fecha).slice(0, 10) : "" });
 const CAMPOS = ["temporada", "jornada", "fecha", "jugador", "estado", "partidos", "pleno", "resultados", "pleno_res", "aciertos", "premio", "coste", "nota", "cambios"];
@@ -156,8 +168,11 @@ const bodyOf = r => { const b = {}; for (const k of CAMPOS) if (k in r) b[k] = r
 
 const Real = {
   sb: null,
-  init() { this.sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true } }); },
-  async session() { const { data, error } = await this.sb.auth.getSession(); if (error && !data.session && (error.name === "AuthRetryableFetchError" || !error.status)) throw error; return data.session; },  // error de red: no es «sin sesión»
+  init() {
+    this.sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true } });
+    this.sb.auth.onAuthStateChange(ev => { if (ev !== "INITIAL_SESSION") diag("auth " + ev); });
+  },
+  async session() { const { data, error } = await this.sb.auth.getSession(); if (error) diag("sesion error " + (error.name || "") + " " + (error.status || "") + " " + (error.message || "").slice(0, 80)); if (error && !data.session && (error.name === "AuthRetryableFetchError" || !error.status)) throw error; return data.session; },  // error de red: no es «sin sesión»
   async login(usuario, pass) {
     const u = usuario.trim().toLowerCase();
     const email = u.includes("@") ? u : `${u}@${CFG.dominio}`;
@@ -243,6 +258,7 @@ async function arrancar() {
   cargarJornadas();
   let ses = await API.session().catch(() => undefined);
   if (ses === undefined) { await new Promise(r => setTimeout(r, 2000)); ses = await API.session().catch(() => undefined); }
+  diag("inicio " + (ses ? "con sesión" : ses === null ? "SIN sesión" : "sesión desconocida (red)"));
   if (ses === null) { S.fase = "login"; render(); return; }
   await entrar();
 }
@@ -250,7 +266,7 @@ async function entrar(intento = 0) {
   S.fase = "carga"; render();
   try {
     await recargar();
-    if (!S.yo && !DEMO) { S.fase = "login"; S.loginErr = "Tu usuario no está asociado a ningún jugador de la peña. Avisa a Choncha."; await API.logout(); render(); return; }
+    if (!S.yo && !DEMO) { diag("sin jugador asociado"); S.fase = "login"; S.loginErr = "Tu usuario no está asociado a ningún jugador de la peña. Avisa a Choncha."; await API.logout(); render(); return; }
     S.fase = "app"; render();
     API.suscribir(() => programarRecarga());
     iniciarDirecto();
@@ -258,6 +274,7 @@ async function entrar(intento = 0) {
   } catch (e) {
     // Al despertar el móvil la conexión o la renovación de la sesión pueden tardar unos segundos: se reintenta
     // antes de pedir usuario y contraseña, y nunca se cierra la sesión por un fallo de conexión.
+    diag("carga fallida " + ((e && (e.message || e.code)) || "").slice(0, 80));
     const ses = await API.session().catch(() => undefined);
     if (ses === null) { S.fase = "login"; S.loginErr = null; render(); return; }
     if (intento < 4) { setTimeout(() => entrar(intento + 1), 1500 * (intento + 1)); return; }
@@ -352,7 +369,12 @@ function vistaLogin() {
     h("label", null, h("span", { class: "label" }, "Contraseña"), h("input", { id: "p", type: "password", autocomplete: "current-password", oninput: e => p = e.target.value })),
     S.loginErr ? h("div", { class: "err" }, S.loginErr) : null,
     h("button", { class: "btn go block", type: "submit", disabled: S.busy }, S.busy ? "Entrando…" : "Entrar"),
-    h("p", { class: "small muted" }, "¿Has olvidado la contraseña? Pídele a Choncha que te ponga una nueva.")));
+    h("p", { class: "small muted" }, "¿Has olvidado la contraseña? Pídele a Choncha que te ponga una nueva."),
+    DEMO ? null : h("button", { type: "button", class: "link small", onclick: async () => {
+      const t = informeDiag();
+      try { await navigator.clipboard.writeText(t); toast("Informe copiado: pégalo en WhatsApp a Choncha"); }
+      catch (e) { location.href = "https://wa.me/?text=" + encodeURIComponent(t); }
+    } }, "¿Te ha vuelto a pedir la contraseña sin motivo? Copia este informe y mándaselo a Choncha")));
 }
 
 /* ---------- pestaña Jornada ---------- */
@@ -1194,15 +1216,25 @@ if ("serviceWorker" in navigator && location.protocol === "https:") {
   }).catch(() => { });
   // Cuando se instala una versión nueva de la app, se recarga sola una vez
   let recargada = false;
-  navigator.serviceWorker.addEventListener("controllerchange", () => { if (recargada) return; recargada = true; if (!M) recargarSeguro(); });
+  navigator.serviceWorker.addEventListener("controllerchange", () => { if (recargada) return; recargada = true; hayVersionNueva(); });
 }
 /* Recargar sin cortar la renovación de la sesión: al volver al móvil tras un rato, la sesión se renueva;
    si la página se recarga justo en ese momento, el servidor da la sesión por usada y pide entrar otra vez. */
 let recargando = false;
 async function recargarSeguro() {
   if (recargando) return; recargando = true;
+  diag("actualizar a versión nueva");
   try { await new Promise(r => setTimeout(r, 1500)); await API.session(); } catch (e) { }
   location.reload();
+}
+/* Hay versión nueva: no se recarga sola (podría cortar la sesión); se avisa con un botón */
+let avisoVersion = false;
+function hayVersionNueva() {
+  if (avisoVersion || S.fase !== "app") { if (S.fase !== "app") recargarSeguro(); return; }
+  avisoVersion = true;
+  const b = h("div", { class: "note row spread", style: "position:fixed;left:12px;right:12px;bottom:12px;z-index:50;box-shadow:0 4px 16px rgba(0,0,0,.2)" },
+    h("span", null, "Hay una versión nueva de la app."), h("button", { class: "btn go", onclick: recargarSeguro }, "Actualizar"));
+  document.body.append(b);
 }
 /* Avisar si hay una versión nueva publicada mientras la app está abierta */
 const VERSION_APP = (document.querySelector('script[src*="app.js"]') || {}).src || "";
@@ -1210,7 +1242,7 @@ async function comprobarVersion() {
   try {
     const html = await fetch("index.html?_=" + Date.now(), { cache: "no-store" }).then(r => r.text());
     const m = html.match(/app\.js\?v=\d+/);
-    if (m && VERSION_APP && !VERSION_APP.includes(m[0]) && !M) recargarSeguro();
+    if (m && VERSION_APP && !VERSION_APP.includes(m[0])) hayVersionNueva();
   } catch (e) { }
 }
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") comprobarVersion(); });
