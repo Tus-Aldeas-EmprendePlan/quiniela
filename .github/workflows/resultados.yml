@@ -14,11 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Prueba de conexión con Loterías
-        if: github.event_name == 'push'
-        run: python3 scripts/resultados.py --prueba
       - name: Resultados y premios oficiales
-        if: github.event_name != 'push'
         run: python3 scripts/resultados.py
       - run: python3 scripts/validar.py
       - name: Guardar cambios

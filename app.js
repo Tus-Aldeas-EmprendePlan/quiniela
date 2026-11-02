@@ -1125,10 +1125,11 @@ function parecido(a, b) {
 const esFem = p => /\(F\)/i.test(p.local + p.visitante);
 const ymd = d => d.getFullYear() + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0");
 const horaDe = s => s ? new Date(String(s).replace(" ", "T") + ":00") : null;
+/* Los marcadores se siguen mostrando hasta que llegan los resultados oficiales (como mucho 4 días) */
 function ventanaDirecto(J) {
   const hs = [...J.partidos.map(p => p.hora), J.pleno && J.pleno.hora].map(horaDe).filter(d => d && !isNaN(d));
   if (!hs.length) return null;
-  return { desde: new Date(Math.min(...hs) - 15 * 60e3), hasta: new Date(Math.max(...hs) + 150 * 60e3), dias: [...new Set(hs.map(ymd))] };
+  return { desde: new Date(Math.min(...hs) - 15 * 60e3), hasta: new Date(Math.max(...hs) + 4 * 864e5), dias: [...new Set(hs.map(ymd))] };
 }
 function leerEvento(ev) {
   const c = (ev.competitions || [])[0] || {}; const cs = c.competitors || [];
