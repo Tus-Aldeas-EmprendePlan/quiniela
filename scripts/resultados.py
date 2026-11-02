@@ -34,28 +34,29 @@ def main():
         horas = [p.get("hora") for p in d["partidos"]] + [(d.get("pleno") or {}).get("hora")]
         ultimo = datetime.datetime.strptime(max(h for h in horas if h), "%Y-%m-%d %H:%M").replace(tzinfo=MADRID)
         if ultimo + datetime.timedelta(hours=2) > ahora:
-            print(f"{e['id']}: la jornada aún no ha terminado (último partido {ultimo:%d/%m %H:%M})"); continue
+            print(f"::notice::{e['id']}: la jornada aún no ha terminado (último partido {ultimo:%d/%m %H:%M})"); continue
         tf = temporada_fin(d["temporada"])
         s = bajar(d["jornadaOficial"], tf)
         if str(s.get("jornada")) != str(d["jornadaOficial"]) or int(s.get("temporada") or 0) != tf:
-            print(f"{e['id']}: la fuente aún no tiene la jornada {d['jornadaOficial']}"); continue
+            print(f"::notice::{e['id']}: la fuente aún no tiene la jornada {d['jornadaOficial']}"); continue
         ps = sorted(s.get("partidos") or [], key=lambda p: int(p["num"]))
         signos = [str(p.get("signo") or "").strip().upper() for p in ps[:14]]
+        print(f"::notice::{e['id']}: la fuente trae {' '.join(x or '?' for x in signos)} · pleno {(ps[14] if len(ps) > 14 else {}).get('signo_goles')} · {s.get('estado')}")
         sg15 = str((ps[14] if len(ps) > 14 else {}).get("signo_goles") or "").strip().upper()
         if len(ps) < 15 or any(x not in ("1", "X", "2") for x in signos) or len(sg15) != 2 or any(c not in "012M" for c in sg15):
-            print(f"{e['id']}: faltan resultados"); continue
+            print(f"::notice::{e['id']}: faltan resultados"); continue
         for i, (p, q) in enumerate(zip(d["partidos"], ps[:14]), 1):
             print(f"  {i:2} {p['local']} - {p['visitante']}  ←  {q['local']} - {q['visitante']}  {q.get('resultado')}  {q.get('signo')}")
         pleno = {"l": sg15[0], "v": sg15[1]}
         d["resultados"], d["plenoRes"] = signos, pleno
-        print(f"{e['id']}: resultados {' '.join(signos)} · pleno {pleno['l']}-{pleno['v']}")
+        print(f"::notice::{e['id']}: resultados {' '.join(signos)} · pleno {pleno['l']}-{pleno['v']}")
         ac = {str(a["acierto"]): round(float(a.get("premio") or 0), 2) for a in (s.get("acertantes") or [])}
         if s.get("estado") == "ESCRUTADA" and all(k in ac for k in CATS) and any(ac[k] > 0 for k in ("14", "13", "12", "11")):
             d["premios"] = {k: ac[k] for k in CATS}
             e["conResultados"] = True
-            print(f"{e['id']}: premios {d['premios']}")
+            print(f"::notice::{e['id']}: premios {d['premios']}")
         else:
-            print(f"{e['id']}: los premios aún no están publicados")
+            print(f"::notice::{e['id']}: los premios aún no están publicados")
         f.write_text(json.dumps(d, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     if idx != json.loads(original):
         idx["actualizado"] = ahora.date().isoformat()
