@@ -344,7 +344,7 @@ function render() {
   const parts = [];
   if (DEMO) parts.push(h("div", { class: "note" }, "Modo demostración: los cambios no se guardan. Cuando rellenes config.js con los datos de Supabase, la app funcionará de verdad."));
   if (S.msg) parts.push(h("div", { class: "note row spread" }, h("span", null, S.msg), h("button", { class: "link", onclick: () => { S.msg = null; render(); } }, "Cerrar")));
-  const rows = S.rows;
+  const rows = S.rows.map(conEscrutinio);
   if (S.tab === "jornada") parts.push(...vistaJornada(rows));
   if (S.tab === "ranking") parts.push(...vistaRanking(rows));
   if (S.tab === "historico") parts.push(...vistaHistorico(rows));
@@ -674,7 +674,23 @@ function boletoVista(r0, compacto) {
 
 /* ---------- ventana de una quiniela ---------- */
 let M = null;
-function abrirQuiniela(row, nueva) { M = { row, draft: clone(row), nueva: !!nueva, showCols: false, confirmDel: false, err: null, busy: false, paste: "" }; pintarModal(); }
+/* Si ya hay resultados oficiales pero quien jugó la quiniela aún no ha abierto la app (solo él puede guardarla),
+   los demás la ven ya escrutada: aciertos y premio calculados al vuelo. Se guarda cuando la abre su dueño. */
+function conEscrutinio(r) {
+  const J = S.jornadas[r.jornada];
+  if (!J || !J.resultados || !r.partidos || J.resultados.filter(Boolean).length !== NPART) return r;
+  const faltaAc = r.aciertos == null || JSON.stringify(r.resultados || []) !== JSON.stringify(J.resultados);
+  const faltaPr = r.premio == null && !!J.premios;
+  if (!faltaAc && !faltaPr) return r;
+  const d = { ...r, resultados: J.resultados.slice(), pleno_res: J.plenoRes ? { ...J.plenoRes } : r.pleno_res };
+  const e = escrutar(d); if (!e) return r;
+  if (faltaAc) d.aciertos = aciertosPena(d, e);
+  if (faltaPr) d.premio = calcPremio(e, J.premios);
+  if (J.premios) d.estado = "escrutada";
+  d._calculada = true;
+  return d;
+}
+function abrirQuiniela(row, nueva) { if (row && row._calculada) row = S.rows.find(x => x.id === row.id) || row; M = { row, draft: clone(row), nueva: !!nueva, showCols: false, confirmDel: false, err: null, busy: false, paste: "" }; pintarModal(); }
 function cerrarModal() { M = null; document.getElementById("modalRoot").replaceChildren(); document.body.style.overflow = ""; }
 function pintarModal() {
   const root = document.getElementById("modalRoot");
