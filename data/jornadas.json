@@ -1,5 +1,5 @@
 {
- "actualizado": "2026-10-29",
+ "actualizado": "2026-11-03",
  "jornadas": [
   {
    "id": "2026-27_J10",
@@ -15,7 +15,7 @@
    "jornada": 11,
    "jornadaOficial": 18,
    "fecha": "2026-11-01",
-   "conResultados": false
+   "conResultados": true
   }
  ]
 }
