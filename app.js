@@ -442,6 +442,7 @@ function vistaJornada(rows) {
       r.estado === "borrador" && empezada ? h("div", { class: "note" }, "La jornada ya ha empezado y este boleto sigue en borrador. Si ya lo sellaste, márcalo como sellado.") : null,
       r.estado === "sellada" && !(J && J.resultados) ? h("p", { class: "muted small" }, "Cuando estén los resultados oficiales, la app la escruta sola y apunta el premio.") : null,
       r.partidos ? boletoVista(r, true) : h("p", { class: "muted" }, "Todavía sin partidos."),
+      r.partidos && J ? queNecesitas(r, J) : null,
       h("div", { class: "row" }, h("button", { class: "btn", onclick: () => abrirQuiniela(r) }, puedoEscribir(r.jugador) ? (r.estado === "borrador" ? "Seguir rellenando" : "Ver o corregir") : "Ver detalle"))));
   }
   // próxima quiniela
@@ -468,6 +469,58 @@ function vistaJornada(rows) {
       h("div", { class: "row" }, h("button", { class: "btn go", onclick: crearQuiniela }, "Empezar quiniela")))
       : h("p", { class: "muted" }, `Cuando ${pname(t.next)} la rellene, la verás aquí. Mientras tanto puedes mirar el pronóstico.`)));
   return out.concat(pronosticoActual(t));
+}
+/* «Qué necesitas»: con la jornada empezada, prueba todas las combinaciones de los partidos que faltan
+   (o una muestra si faltan muchos), pesadas con las probabilidades del pronóstico, y calcula qué
+   probabilidad hay de llegar a cada premio, cuánto se cobraría y qué resultado conviene en cada partido. */
+function queNecesitas(r0, J) {
+  if ((J.resultados || []).filter(Boolean).length === NPART) return null;
+  const L = S.live[J.jornada];
+  const fijo = J.partidos.map((p, i) => (J.resultados && J.resultados[i]) || (L && L.items[i] && L.items[i].estado === "post" && L.items[i].signo) || "");
+  const pend = fijo.map((x, i) => x ? -1 : i).filter(i => i >= 0);
+  const hechos = NPART - pend.length;
+  if (!hechos || !pend.length) return null;
+  const prob = i => { const p = J.partidos[i]; const t = (p.p1 + p.pX + p.p2) || 100; return { "1": p.p1 / t, "X": p.pX / t, "2": p.p2 / t }; };
+  const conEst = !!(J.estimacion && J.estimacion.recaudacion);
+  const cats = ["14", "13", "12", "11", "10"];
+  const acc = { w: 0, premioW: 0, cobrarW: 0, cat: {}, porPartido: {} };
+  cats.forEach(c => acc.cat[c] = { w: 0, premio: 0 });
+  pend.forEach(i => { acc.porPartido[i] = {}; SIGNS.forEach(sg => acc.porPartido[i][sg] = { w: 0, cobra: 0 }); });
+  const evaluar = (res, w) => {
+    const e = escrutar({ partidos: r0.partidos, pleno: r0.pleno, resultados: res, pleno_res: {} }); if (!e) return;
+    let premio = 0;
+    if (conEst) { const est = estimarUno(J, res, null); const pr = {}; for (const c of cats) pr[c] = est.cats[c].premio; premio = calcPremio({ ...e, plenoOk: false }, pr) || 0; }
+    const cobra = conEst ? premio > 0 : e.best >= 10;
+    acc.w += w; acc.premioW += w * premio; if (cobra) acc.cobrarW += w;
+    if (e.best >= 10) { const c = acc.cat[String(Math.min(e.best, 14))]; c.w += w; if (premio > 0) { c.paid = (c.paid || 0) + w; c.premio += w * premio; } }
+    pend.forEach(i => { const o = acc.porPartido[i][res[i]]; o.w += w; if (cobra) o.cobra += w; });
+  };
+  if (pend.length <= 8) {
+    const rec = (k, res, w) => { if (k === pend.length) { evaluar(res, w); return; } const pr = prob(pend[k]); for (const sg of SIGNS) { res[pend[k]] = sg; rec(k + 1, res, w * pr[sg]); } };
+    rec(0, fijo.slice(), 1);
+  } else {
+    for (let n = 0; n < 4000; n++) { const res = fijo.slice(); pend.forEach(i => { const pr = prob(i), u = Math.random(); res[i] = u < pr["1"] ? "1" : u < pr["1"] + pr["X"] ? "X" : "2"; }); evaluar(res, 1); }
+  }
+  if (!acc.w) return null;
+  const pc = x => { const v = 100 * x / acc.w; return v < 0.5 && v > 0 ? "<1 %" : Math.round(v) + " %"; };
+  const ahora = (() => { const d = { ...r0, resultados: fijo }; const e = escrutar({ ...d, pleno_res: {} }); return { base: partidosDentro(d), best: e ? e.best : 0 }; })();
+  const enJuego = pend.filter(i => L && L.items[i] && L.items[i].estado === "in").length;
+  const filas = cats.map(c => { const o = acc.cat[c]; if (!o.w) return null;
+    return h("tr", null, h("td", null, c + " aciertos"), h("td", { class: "num" }, pc(o.w)), conEst ? h("td", { class: "num" }, !o.paid || o.paid < o.w / 2 ? "sin premio" : "≈ " + eur(o.premio / o.paid)) : null); }).filter(Boolean);
+  const partidos = pend.map(i => { const p = J.partidos[i], jug = normSigns(r0.partidos[i].signos), pp = acc.porPartido[i];
+    const mejor = SIGNS.slice().sort((a, b) => (pp[b].w ? pp[b].cobra / pp[b].w : 0) - (pp[a].w ? pp[a].cobra / pp[a].w : 0))[0];
+    return h("div", { class: "qn-p" }, h("span", { class: "qn-n" }, i + 1), h("span", { class: "qn-m" }, `${p.local} – ${p.visitante}`, L && L.items[i] && L.items[i].estado === "in" ? h("span", { class: "live-pill pill", style: "margin-left:6px" }, L.items[i].marcador) : null),
+      h("span", { class: "qn-s" }, SIGNS.map(sg => h("span", { class: "qn-sg" + (jug.includes(sg) ? " jug" : "") + (sg === mejor ? " mejor" : ""), title: `Si sale ${sg}: ${pp[sg].w ? Math.round(100 * pp[sg].cobra / pp[sg].w) : 0} % de cobrar` },
+        h("b", null, sg), h("small", null, pp[sg].w ? Math.round(100 * pp[sg].cobra / pp[sg].w) + "%" : "–"))))); });
+  return h("div", { class: "estim stack" },
+    h("div", { class: "row spread" }, h("h3", null, "Qué necesitas"), h("span", { class: "small muted" }, `${hechos} terminados · faltan ${pend.length}`)),
+    h("p", { class: "small" }, `Ahora llevas ${ahora.base} aciertos (mejor columna ${ahora.best}). Como mucho puedes llegar a ${ahora.base + pend.length}. `,
+      h("b", null, `Probabilidad de cobrar premio: ${pc(acc.cobrarW)}.`)),
+    filas.length ? h("div", { class: "tw" }, h("table", null, h("thead", null, h("tr", null, h("th", null, "Llegar a"), h("th", { class: "num" }, "Prob."), conEst ? h("th", { class: "num" }, "Cobrarías") : null)), h("tbody", null, filas))) : null,
+    h("span", { class: "label" }, "Lo que te conviene en cada partido que falta"),
+    h("div", { class: "stack", style: "gap:4px" }, partidos),
+    h("p", { class: "small muted" }, "En cada signo, la probabilidad de cobrar si sale ese resultado. En negro, los signos de tu boleto; en verde, el que más te conviene. Calculado con las probabilidades del pronóstico" +
+      (enJuego ? "; los partidos en juego cuentan como pendientes, sin tener en cuenta el marcador actual" : "") + (conEst ? " y la estimación de premios." : ". Los premios en euros aparecerán cuando se publique la recaudación.")));
 }
 /* El boleto que propuso la app para una jornada, escrutado con los resultados oficiales o, si aún no hay, con los del directo */
 function escrutinioApp(J) {
@@ -1307,6 +1360,36 @@ function pintarFicha() {
         h("div", { class: "stack", style: "gap:4px" }, h("b", { class: "small" }, p.local), ev && pos(ev.homeId) ? h("span", { class: "small muted" }, pos(ev.homeId)) : null, h("div", { class: "row", style: "gap:3px" }, fH ? fH.evs.map(chipF) : null)),
         h("div", { class: "stack", style: "gap:4px;align-items:flex-end" }, h("b", { class: "small" }, p.visitante), ev && pos(ev.awayId) ? h("span", { class: "small muted" }, pos(ev.awayId)) : null, h("div", { class: "row", style: "gap:3px" }, fA ? fA.evs.map(chipF) : null))),
       h("span", { class: "small muted" }, "Últimos 5 partidos (de más antiguo a más reciente): V victoria, E empate, D derrota.")));
+  }
+  if (sum) {
+    // cara a cara
+    const serie = (sum.seasonseries || []).find(x => x.type === "head-to-head") || (sum.seasonseries || [])[0];
+    const h2h = ((serie && serie.events) || []).filter(x => x.competitors && x.competitors.length === 2).slice(0, 5);
+    if (h2h.length && ev) {
+      let gL = 0, gV = 0, emp = 0;
+      const lineas = h2h.map(x => {
+        const ch = x.competitors.find(c => c.homeAway === "home"), ca = x.competitors.find(c => c.homeAway === "away");
+        const gh = parseInt(ch.score), ga = parseInt(ca.score);
+        const ganaId = gh > ga ? String(ch.team.id) : ga > gh ? String(ca.team.id) : null;
+        if (!ganaId) emp++; else if (ganaId === ev.homeId) gL++; else gV++;
+        return h("div", { class: "fi-h2h" }, h("span", { class: "muted small" }, x.date ? new Date(x.date).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "2-digit" }) : ""),
+          h("span", { class: "fi-h2h-l" + (ganaId === String(ch.team.id) ? " gana" : "") }, ch.team.shortDisplayName || ch.team.displayName),
+          h("b", null, `${ch.score}-${ca.score}`), h("span", { class: "fi-h2h-v" + (ganaId === String(ca.team.id) ? " gana" : "") }, ca.team.shortDisplayName || ca.team.displayName));
+      });
+      body.push(h("div", { class: "stack", style: "gap:4px" }, h("span", { class: "label" }, `Últimos cara a cara · ${p.local} ${gL} · empates ${emp} · ${p.visitante} ${gV}`), lineas));
+    }
+    // alineaciones
+    const ros = sum.rosters || [];
+    const rH = ros.find(x => x.homeAway === "home"), rA = ros.find(x => x.homeAway === "away");
+    const lista = (rr, alin) => { if (!rr || !(rr.roster || []).length) return null;
+      const tit = rr.roster.filter(x => x.starter), ent = rr.roster.filter(x => !x.starter && x.subbedIn), banq = rr.roster.filter(x => !x.starter && !x.subbedIn);
+      const pj = x => h("div", { class: "fi-jug" }, h("span", { class: "fi-dorsal" }, x.jersey || ""), h("span", null, (x.athlete || {}).shortName || (x.athlete || {}).displayName || ""), x.subbedOut ? h("span", { class: "bad small", title: "Sustituido" }, " ↓") : null, x.subbedIn ? h("span", { class: "ok small", title: "Entró" }, " ↑") : null);
+      return h("div", { class: "stack", style: "gap:2px;align-items:" + alin }, h("b", { class: "small" }, rr.formation ? `Sistema ${rr.formation}` : "Titulares"), tit.map(pj),
+        ent.length ? [h("span", { class: "muted small", style: "margin-top:4px" }, "Entraron"), ent.map(pj)] : null,
+        banq.length ? h("span", { class: "muted small", style: "margin-top:4px" }, "Banquillo: " + banq.map(x => (x.athlete || {}).shortName).join(", ")) : null); };
+    const lH = lista(rH, "flex-start"), lA = lista(rA, "flex-end");
+    body.push(h("div", { class: "stack", style: "gap:6px" }, h("span", { class: "label" }, "Alineaciones"),
+      lH || lA ? h("div", { class: "fi-forma" }, lH || h("span"), lA || h("span")) : h("span", { class: "muted small" }, "Se publican alrededor de una hora antes del partido. Las bajas por lesión o sanción no las da esta fuente: las comenta la nota del pronóstico.")));
   }
   if (ev) body.push(h("p", { class: "small muted" }, "Datos de ESPN" + (f.at ? `, actualizados a las ${f.at.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}` : "") + (ev.estado === "in" ? "; se refrescan cada minuto." : ".")));
   hoja(titulo, h("div", { class: "stack" }, body));
