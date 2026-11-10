@@ -404,7 +404,7 @@ function listaPartidos(J, r) {
     const centro = it && it.marcador ? h("span", { class: "lp-marc" + (vivo ? " vivo" : "") }, `${it.gh}-${it.ga}`)
       : fin && real ? h("span", { class: "lp-marc" }, "–") : h("span", { class: "lp-hora" }, h("span", null, dia), h("span", null, hh));
     const ok = real ? signoOf(real, jug) : null;
-    return h("div", { class: "lp-row" + (vivo ? " en-juego" : "") },
+    return h("div", { class: "lp-row click" + (vivo ? " en-juego" : ""), tabindex: "0", title: "Ver goles y estadísticas", onclick: () => abrirFicha(J, n - 1), onkeydown: e => { if (e.key === "Enter") abrirFicha(J, n - 1); } },
       h("span", { class: "lp-n" }, n),
       h("span", { class: "lp-loc", title: p.local }, nombreCorto(p.local)), centro, h("span", { class: "lp-vis", title: p.visitante }, nombreCorto(p.visitante)),
       h("span", { class: "lp-jug" }, jug || "·"),
@@ -425,7 +425,7 @@ function listaPartidos(J, r) {
     h("div", { class: "row spread" }, h("h2", null, `Partidos · Jornada ${J.jornada}`), h("span", { class: "small muted" }, quien)),
     h("div", { class: "lp-head" }, h("span", null, "Nº"), h("span", { class: "lp-h-partido" }, "Partido"), h("span", null, "Jug."), h("span", null, "Estado"), h("span", null, "Real")),
     h("div", { class: "lp" }, rows),
-    h("p", { class: "small muted" }, "El signo real sale en verde si entra en el pronóstico jugado y en rojo si no. Mientras se juega, es provisional (con borde discontinuo)."));
+    h("p", { class: "small muted" }, "Toca un partido para ver goles, tarjetas, estadísticas, forma y clasificación. El signo real sale en verde si entra en el pronóstico jugado y en rojo si no. Mientras se juega, es provisional (con borde discontinuo)."));
 }
 function vistaJornada(rows) {
   const t = turno(rows); const out = [];
@@ -550,7 +550,7 @@ function tarjetaPronostico(J) {
   const L = J.resultados ? null : S.live[J.jornada];
   const VAL = valorJornada(J);
   const valDe = i => VAL.filter(v => v.i === i);
-  const lines = J.partidos.map((p, i) => h("div", { class: "pr" },
+  const lines = J.partidos.map((p, i) => h("div", { class: "pr click", title: "Ver goles y estadísticas", onclick: ev => { if (!ev.target.closest("a")) abrirFicha(J, i); } },
     h("div", { class: "n" }, i + 1),
     h("div", { class: "m" },
       h("div", null, h("b", null, p.local), " – ", h("b", null, p.visitante), h("span", { class: "muted small" }, "  " + fhora(p.hora))),
@@ -565,7 +565,7 @@ function tarjetaPronostico(J) {
     h("div", { class: "sub" }, p.nota, p.publico ? " Apuestas de la gente: " + p.publico + "." : "",
       valDe(i).map(v => h("span", { class: "valor" }, ` Valor en el ${v.s}: lo vemos al ${v.p} % y la gente solo lo apuesta al ${v.pub} %.`)))));
   const pl = J.pleno, plr = J.plenoRes;
-  lines.push(h("div", { class: "pr p15" },
+  lines.push(h("div", { class: "pr p15 click", title: "Ver goles y estadísticas", onclick: () => abrirFicha(J, NPART) },
     h("div", { class: "n" }, "15"),
     h("div", { class: "m" }, h("div", null, h("b", null, pl.local), " – ", h("b", null, pl.visitante), h("span", { class: "muted small" }, "  " + fhora(pl.hora))), chipDirecto(L && L.pleno), h("span", { class: "label" }, "Pleno al 15")),
     h("div", { class: "signs-mini" }, h("span", { class: "box on" }, pl.l), h("span", { class: "box on" }, pl.v), plr ? [h("span", { class: "sep" }), h("span", { class: "box res on" }, plr.l), h("span", { class: "box res on" }, plr.v)] : null),
@@ -575,7 +575,7 @@ function tarjetaPronostico(J) {
       h("span", { class: "label" }, `Jornada ${J.jornada}` + (J.jornadaOficial ? ` · nº ${J.jornadaOficial} de Loterías` : "") + (J.cierre ? ` · cierra ${fhora(J.cierre)}` : "")),
       h("h2", null, J.resultados ? "Partidos, pronóstico y resultados" : "Partidos y pronóstico")),
     h("p", { class: "small" }, J.resumen),
-    h("p", { class: "small muted" }, "Cada barra reparte la probabilidad del 1 (verde), la X (gris) y el 2 (azul). Las casillas negras son el boleto propuesto."),
+    h("p", { class: "small muted" }, "Cada barra reparte la probabilidad del 1 (verde), la X (gris) y el 2 (azul). Las casillas negras son el boleto propuesto. Toca un partido para ver goles, estadísticas, forma y clasificación."),
     J.premios ? h("div", { class: "note good small" }, "Premios oficiales por columna: ", ["15", "14", "13", "12", "11", "10"].filter(k => J.premios[k] != null).map(k => `${k === "15" ? "14+P" : k}: ${eur(J.premios[k])}`).join(" · ")) : null,
     L ? avisoDirecto(L) : null,
     VAL.length && !J.resultados ? h("div", { class: "note small" }, h("b", null, "Dónde hay valor: "),
@@ -691,7 +691,7 @@ function conEscrutinio(r) {
   return d;
 }
 function abrirQuiniela(row, nueva) { if (row && row._calculada) row = S.rows.find(x => x.id === row.id) || row; M = { row, draft: clone(row), nueva: !!nueva, showCols: false, confirmDel: false, err: null, busy: false, paste: "" }; pintarModal(); }
-function cerrarModal() { M = null; document.getElementById("modalRoot").replaceChildren(); document.body.style.overflow = ""; }
+function cerrarModal() { if (F) { clearInterval(F.timer); F = null; } M = null; document.getElementById("modalRoot").replaceChildren(); document.body.style.overflow = ""; }
 function pintarModal() {
   const root = document.getElementById("modalRoot");
   if (!M) { root.replaceChildren(); return; }
@@ -1154,6 +1154,9 @@ function leerEvento(ev) {
   const st = (ev.status || c.status || {}); const ty = st.type || {};
   const nombre = t => [t.displayName, t.shortDisplayName, t.name, t.location].filter(Boolean).join(" ");
   return { id: String(ev.id), home: nombre(home.team || {}), away: nombre(away.team || {}), gh: parseInt(home.score), ga: parseInt(away.score),
+    homeId: String((home.team || {}).id || home.id || ""), awayId: String((away.team || {}).id || away.id || ""),
+    homeName: (home.team || {}).shortDisplayName || (home.team || {}).displayName || "", awayName: (away.team || {}).shortDisplayName || (away.team || {}).displayName || "",
+    details: c.details || [],
     estado: ty.state || "pre", detalle: ty.shortDetail || ty.detail || st.displayClock || "", fecha: ev.date,
     descanso: ty.name === "STATUS_HALFTIME" || /^(HT|Halftime|Descanso)$/i.test(ty.shortDetail || "") };
 }
@@ -1167,7 +1170,7 @@ function itemDe(ev) {
 async function pedirLiga(liga, dia) {
   const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/${liga}/scoreboard?dates=${dia}`, { cache: "no-store" });
   if (!r.ok) throw new Error("http " + r.status);
-  const d = await r.json(); return (d.events || []).map(leerEvento).filter(Boolean);
+  const d = await r.json(); return (d.events || []).map(leerEvento).filter(Boolean).map(e => ({ ...e, liga }));
 }
 function emparejar(p, eventos) {
   if (p.espn) return eventos.find(e => e.id === String(p.espn)) || null;
@@ -1224,6 +1227,90 @@ function avisoDirecto(L) {
 }
 function iniciarDirecto() { clearInterval(tDirecto); tDirecto = setInterval(actualizarDirecto, 60e3); actualizarDirecto(); }
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") actualizarDirecto(); });
+
+/* ---------- ficha del partido: goles, tarjetas, estadísticas, forma y clasificación (datos de ESPN) ---------- */
+let F = null;
+const STATS_FICHA = [["possessionPct", "Posesión", "%"], ["totalShots", "Tiros"], ["shotsOnTarget", "Tiros a puerta"], ["wonCorners", "Córners"],
+  ["foulsCommitted", "Faltas"], ["offsides", "Fueras de juego"], ["saves", "Paradas"], ["yellowCards", "Amarillas"], ["redCards", "Rojas"]];
+function abrirFicha(J, i) {
+  if (F) clearInterval(F.timer);
+  F = { J, i, ev: null, sum: null, cargando: true, err: null, timer: null };
+  pintarFicha(); cargarFicha();
+  F.timer = setInterval(() => { if (F && document.visibilityState === "visible" && (!F.ev || F.ev.estado !== "post" || !F.sum)) cargarFicha(); }, 60e3);
+}
+async function cargarFicha() {
+  const f = F; if (!f) return;
+  const p = f.i < NPART ? f.J.partidos[f.i] : f.J.pleno;
+  try {
+    const d = horaDe(p.hora); if (!d || isNaN(d)) throw new Error("sin fecha");
+    let ev = null;
+    for (const liga of (esFem(p) ? LIGAS_F : LIGAS_H)) {
+      const evs = await pedirLiga(liga, ymd(d)).catch(() => []);
+      ev = emparejar(p, evs); if (ev) break;
+    }
+    if (!ev) throw new Error("no encontrado");
+    let sum = null;
+    try { const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/${ev.liga}/summary?event=${ev.id}`, { cache: "no-store" }); if (r.ok) sum = await r.json(); } catch (e) { }
+    if (F !== f) return;
+    f.ev = ev; f.sum = sum || f.sum; f.cargando = false; f.err = null; f.at = new Date();
+  } catch (e) { if (F !== f) return; f.cargando = false; f.err = e.message; }
+  pintarFicha();
+}
+function pintarFicha() {
+  const f = F; if (!f) return;
+  const J = f.J, i = f.i, pleno = i >= NPART, p = pleno ? J.pleno : J.partidos[i];
+  const ev = f.ev, sum = f.sum;
+  const titulo = pleno ? "Pleno al 15" : `Partido ${i + 1}`;
+  const body = [];
+  // marcador
+  const it = ev ? itemDe(ev) : null;
+  const estado = !ev ? (f.cargando ? "Buscando el partido…" : "") : ev.estado === "pre" ? `Empieza ${fhora(p.hora)}` : ev.estado === "in" ? (ev.descanso ? "Descanso" : (ev.detalle || "En juego")) : "Final";
+  body.push(h("div", { class: "fi-top" },
+    h("div", { class: "fi-eq" }, h("b", null, p.local)),
+    h("div", { class: "fi-marc" + (ev && ev.estado === "in" ? " vivo" : "") }, it && it.marcador ? `${ev.gh} - ${ev.ga}` : "–"),
+    h("div", { class: "fi-eq" }, h("b", null, p.visitante)),
+    h("div", { class: "fi-est" + (ev && ev.estado === "in" ? " vivo" : "") }, estado)));
+  // nuestro pronóstico
+  if (!pleno) body.push(h("p", { class: "small" }, h("b", null, "Pronóstico de la app: "), `1 ${p.p1} % · X ${p.pX} % · 2 ${p.p2} % · boleto ${p.sugerido}.`,
+    p.publico ? ` La gente: ${p.publico}.` : "", p.nota ? h("span", { class: "muted" }, " " + p.nota) : null));
+  else body.push(h("p", { class: "small" }, h("b", null, "Pronóstico de la app: "), `${p.l}-${p.v}.`, p.nota ? h("span", { class: "muted" }, " " + p.nota) : null));
+  if (f.err && !ev) body.push(h("p", { class: "muted small" }, f.err === "no encontrado" ? "Este partido no aparece todavía en la fuente de datos (ESPN). Prueba más cerca de la hora del partido." : "No se pudieron cargar los datos del partido. Comprueba la conexión."));
+  if (ev) {
+    const lado = d => String((d.team || {}).id || "") === ev.homeId ? "l" : "v";
+    const nombreJ = d => ((d.athletesInvolved || [])[0] || {}).shortName || ((d.athletesInvolved || [])[0] || {}).displayName || "";
+    const goles = ev.details.filter(d => d.scoringPlay && !d.shootout);
+    const rojas = ev.details.filter(d => d.redCard), amarillas = ev.details.filter(d => d.yellowCard);
+    const filaEv = (d, txt) => h("div", { class: "fi-ev " + lado(d) }, h("span", { class: "fi-min" }, (d.clock || {}).displayValue || ""), h("span", null, txt));
+    if (goles.length || ev.estado !== "pre") body.push(h("div", { class: "stack", style: "gap:4px" }, h("span", { class: "label" }, "Goles"),
+      goles.length ? goles.map(d => filaEv(d, "⚽ " + nombreJ(d) + (d.penaltyKick ? " (penalti)" : "") + (d.ownGoal ? " (en propia)" : ""))) : h("span", { class: "muted small" }, "Sin goles")));
+    if (rojas.length || amarillas.length) body.push(h("div", { class: "stack", style: "gap:4px" }, h("span", { class: "label" }, "Tarjetas"),
+      [...rojas.map(d => [d, "🟥"]), ...amarillas.map(d => [d, "🟨"])].sort((a, b) => ((a[0].clock || {}).value || 0) - ((b[0].clock || {}).value || 0)).map(([d, t]) => filaEv(d, t + " " + nombreJ(d)))));
+  }
+  if (sum) {
+    // estadísticas
+    const tms = (sum.boxscore && sum.boxscore.teams) || [];
+    const tH = tms.find(t => String(t.team.id) === (ev && ev.homeId)) || tms[0], tA = tms.find(t => String(t.team.id) === (ev && ev.awayId)) || tms[1];
+    const val = (t, n) => { const x = ((t && t.statistics) || []).find(y => y.name === n); return x ? parseFloat(x.displayValue) : null; };
+    const filas = STATS_FICHA.map(([n, l, u]) => { const a = val(tH, n), b = val(tA, n); if (a == null || b == null || (ev && ev.estado === "pre")) return null;
+      const tot = a + b || 1; return h("div", { class: "fi-st" }, h("span", { class: "fi-st-v" }, String(a).replace(".", ",") + (u ? " " + u : "")), h("div", { class: "fi-st-c" }, h("span", { class: "small muted" }, l),
+        h("div", { class: "fi-bar" }, h("i", { class: "a", style: `width:${100 * a / tot}%` }), h("i", { class: "b", style: `width:${100 * b / tot}%` }))), h("span", { class: "fi-st-v" }, String(b).replace(".", ",") + (u ? " " + u : ""))); }).filter(Boolean);
+    if (filas.length) body.push(h("div", { class: "stack", style: "gap:6px" }, h("span", { class: "label" }, "Estadísticas"), filas));
+    // forma
+    const forma = (sum.lastFiveGames || []).map(t => ({ id: String((t.team || {}).id || ""), evs: (t.events || []).slice(-5) }));
+    const chipF = e => { const r = { W: "V", D: "E", L: "D" }[e.gameResult] || "?"; return h("span", { class: "forma f-" + r, title: `${e.atVs === "@" ? "en" : "contra"} ${(e.opponent || {}).displayName || ""} ${e.score || ""}` }, r); };
+    const fH = forma.find(x => ev && x.id === ev.homeId) || forma[0], fA = forma.find(x => ev && x.id === ev.awayId) || forma[1];
+    // clasificación
+    const ent = (((sum.standings || {}).groups || [])[0] || {}).standings ? sum.standings.groups[0].standings.entries || [] : [];
+    const pos = id => { const k = ent.findIndex(x => String(x.id) === id); if (k < 0) return null; const st = n => ((ent[k].stats || []).find(y => y.name === n) || {}).displayValue; return `${st("rank") || k + 1}º · ${st("points") || "?"} pts`; };
+    if ((fH && fH.evs.length) || ent.length) body.push(h("div", { class: "stack", style: "gap:6px" }, h("span", { class: "label" }, "Cómo llegan"),
+      h("div", { class: "fi-forma" },
+        h("div", { class: "stack", style: "gap:4px" }, h("b", { class: "small" }, p.local), ev && pos(ev.homeId) ? h("span", { class: "small muted" }, pos(ev.homeId)) : null, h("div", { class: "row", style: "gap:3px" }, fH ? fH.evs.map(chipF) : null)),
+        h("div", { class: "stack", style: "gap:4px;align-items:flex-end" }, h("b", { class: "small" }, p.visitante), ev && pos(ev.awayId) ? h("span", { class: "small muted" }, pos(ev.awayId)) : null, h("div", { class: "row", style: "gap:3px" }, fA ? fA.evs.map(chipF) : null))),
+      h("span", { class: "small muted" }, "Últimos 5 partidos (de más antiguo a más reciente): V victoria, E empate, D derrota.")));
+  }
+  if (ev) body.push(h("p", { class: "small muted" }, "Datos de ESPN" + (f.at ? `, actualizados a las ${f.at.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}` : "") + (ev.estado === "in" ? "; se refrescan cada minuto." : ".")));
+  hoja(titulo, h("div", { class: "stack" }, body));
+}
 
 /* ---------- inicio ---------- */
 if ("serviceWorker" in navigator && location.protocol === "https:") {
