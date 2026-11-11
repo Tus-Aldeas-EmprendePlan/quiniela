@@ -235,3 +235,7 @@ tr.click:hover td{background:var(--soft)}
 .qn-sg small{font-size:.62rem;color:var(--muted)}
 .qn-sg.jug{background:var(--ink);color:var(--paper,#fff);border-color:var(--ink)} .qn-sg.jug small{color:inherit;opacity:.8}
 .qn-sg.mejor{outline:2px solid var(--accent);outline-offset:1px}
+.fi-carga{display:flex;flex-direction:column;align-items:center;gap:10px;padding:36px 0}
+.spin{width:26px;height:26px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--accent);animation:gira .8s linear infinite}
+@keyframes gira{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:2.4s}}

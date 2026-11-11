@@ -1315,6 +1315,13 @@ function pintarFicha() {
   const ev = f.ev, sum = f.sum;
   const titulo = pleno ? "Pleno al 15" : `Partido ${i + 1}`;
   const body = [];
+  // Mientras se descargan los datos, solo el partido y un aviso: la ficha aparece entera de una vez
+  if (f.cargando && !ev) {
+    hoja(titulo, h("div", { class: "stack" },
+      h("div", { class: "fi-top" }, h("div", { class: "fi-eq" }, h("b", null, p.local)), h("div", { class: "fi-marc" }, "–"), h("div", { class: "fi-eq" }, h("b", null, p.visitante))),
+      h("div", { class: "fi-carga" }, h("span", { class: "spin", "aria-hidden": "true" }), h("span", { class: "muted small" }, "Cargando goles y estadísticas…"))));
+    return;
+  }
   // marcador
   const it = ev ? itemDe(ev) : null;
   const estado = !ev ? (f.cargando ? "Buscando el partido…" : "") : ev.estado === "pre" ? `Empieza ${fhora(p.hora)}` : ev.estado === "in" ? (ev.descanso ? "Descanso" : (ev.detalle || "En juego")) : "Final";
