@@ -744,10 +744,18 @@ function conEscrutinio(r) {
   return d;
 }
 function abrirQuiniela(row, nueva) { if (row && row._calculada) row = S.rows.find(x => x.id === row.id) || row; M = { row, draft: clone(row), nueva: !!nueva, showCols: false, confirmDel: false, err: null, busy: false, paste: "" }; pintarModal(); }
-function cerrarModal() { if (F) { clearInterval(F.timer); F = null; } M = null; document.getElementById("modalRoot").replaceChildren(); document.body.style.overflow = ""; }
+/* Botón «atrás» del móvil: si hay una ventana abierta (ficha, boleto, menú), la cierra en vez de salir de la app */
+let enHistorial = false;
+function marcarAbierta() { if (!enHistorial) { try { history.pushState({ ventana: 1 }, ""); enHistorial = true; } catch (e) { } } }
+window.addEventListener("popstate", () => { if (enHistorial) { enHistorial = false; cerrarModal(true); } });
+function cerrarModal(desdeAtras) {
+  if (F) { clearInterval(F.timer); F = null; } M = null; document.getElementById("modalRoot").replaceChildren(); document.body.style.overflow = "";
+  if (desdeAtras !== true && enHistorial) { enHistorial = false; try { history.back(); } catch (e) { } }
+}
 function pintarModal() {
   const root = document.getElementById("modalRoot");
   if (!M) { root.replaceChildren(); return; }
+  marcarAbierta();
   const prevScroll = root.querySelector(".ov")?.scrollTop || 0;
   const d = M.draft; const ed = puedoEscribir(d.jugador);
   const J = S.jornadas[d.jornada];
@@ -1106,7 +1114,7 @@ function hoja(titulo, contenido, pie) {
     h("div", { class: "modal", role: "dialog", "aria-modal": "true", "aria-label": titulo },
       h("div", { class: "m-head" }, h("h2", null, titulo), h("button", { class: "btn alt", onclick: cerrarModal }, "Cerrar")),
       h("div", { class: "m-body" }, contenido), pie ? h("div", { class: "m-foot" }, pie) : null));
-  document.getElementById("modalRoot").replaceChildren(ov); document.body.style.overflow = "hidden";
+  document.getElementById("modalRoot").replaceChildren(ov); document.body.style.overflow = "hidden"; marcarAbierta();
 }
 function abrirMenu() {
   const item = (t, sub, fn) => h("button", { class: "card", style: "text-align:left;display:flex;flex-direction:column;gap:2px;width:100%", onclick: fn }, h("b", null, t), h("span", { class: "muted small" }, sub));
