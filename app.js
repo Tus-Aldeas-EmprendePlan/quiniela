@@ -394,7 +394,7 @@ function horaCorta(s) {
 }
 function listaPartidos(J, r) {
   const L = S.live[J.jornada];
-  const jugado = i => r && r.partidos ? normSigns(r.partidos[i].signos) : J.partidos[i].sugerido;
+  const jugado = i => r && r.partidos ? normSigns(r.partidos[i].signos) : (J.partidos[i].sugerido || "");
   const fila = (n, p, it, signoOf, jug, real) => {
     const fin = real != null && (it ? it.estado === "post" : true);
     const vivo = it && it.estado === "in";
@@ -417,10 +417,10 @@ function listaPartidos(J, r) {
     return fila(i + 1, p, J.resultados ? null : it, (x, jug) => jug.includes(x), jugado(i), real);
   });
   const pl = J.pleno, ip = L && L.pleno;
-  const jugPl = r && r.pleno && r.pleno.l ? `${r.pleno.l}-${r.pleno.v}` : `${pl.l}-${pl.v}`;
+  const jugPl = r && r.pleno && r.pleno.l ? `${r.pleno.l}-${r.pleno.v}` : pl.l ? `${pl.l}-${pl.v}` : "";
   const realPl = J.plenoRes ? `${J.plenoRes.l}-${J.plenoRes.v}` : (ip && ip.goles ? `${ip.goles.l}-${ip.goles.v}` : null);
   rows.push(fila(15, pl, J.plenoRes ? null : ip, (x, jug) => x === jug, jugPl, realPl));
-  const quien = r ? `Pronóstico jugado: el boleto de ${pname(r.jugador)}` : "Pronóstico: el boleto propuesto por la app";
+  const quien = r ? `Pronóstico jugado: el boleto de ${pname(r.jugador)}` : conPronostico(J) ? "Pronóstico: el boleto propuesto por la app" : "Pronóstico de la app: pendiente";
   return h("section", { class: "card stack" },
     h("div", { class: "row spread" }, h("h2", null, `Partidos · Jornada ${J.jornada}`), h("span", { class: "small muted" }, quien)),
     h("div", { class: "lp-head" }, h("span", null, "Nº"), h("span", { class: "lp-h-partido" }, "Partido"), h("span", null, "Jug."), h("span", null, "Estado"), h("span", null, "Real")),
@@ -446,7 +446,15 @@ function vistaJornada(rows) {
       h("div", { class: "row" }, h("button", { class: "btn", onclick: () => abrirQuiniela(r) }, puedoEscribir(r.jugador) ? (r.estado === "borrador" ? "Seguir rellenando" : "Ver o corregir") : "Ver detalle"))));
   }
   // próxima quiniela
-  if (t.cal) { out.push(...proximaCalendario(t)); return out.concat(pronosticoActual(t)); }
+  if (t.cal) {
+    const jOpen = (t.abiertas[0] || {}).jornada, Jo = S.jornadas[jOpen];
+    if (Jo && jOpen !== t.jornada) out.push(tarjetaPronostico(Jo));            // la jornada en juego, con sus resultados
+    out.push(...proximaCalendario(t));
+    const Jn = jornadaSiguiente(t);
+    if (Jn) { if (t.abiertas.length) out.push(listaPartidos(Jn, null)); out.push(tarjetaPronostico(Jn)); }   // la siguiente, ya visible
+    else if (!Jo) out.push(...pronosticoActual(t));
+    return out;
+  }
   const libre = !P(t.next).vinculado;
   const opciones = orden().filter(n => n === S.yo || (soyAdmin() && !P(n).vinculado));
   const key = t.jornada + t.next;
@@ -474,7 +482,7 @@ function vistaJornada(rows) {
    (o una muestra si faltan muchos), pesadas con las probabilidades del pronóstico, y calcula qué
    probabilidad hay de llegar a cada premio, cuánto se cobraría y qué resultado conviene en cada partido. */
 function queNecesitas(r0, J) {
-  if ((J.resultados || []).filter(Boolean).length === NPART) return null;
+  if (!conPronostico(J) || (J.resultados || []).filter(Boolean).length === NPART) return null;
   const L = S.live[J.jornada];
   const fijo = J.partidos.map((p, i) => (J.resultados && J.resultados[i]) || (L && L.items[i] && L.items[i].estado === "post" && L.items[i].signo) || "");
   const pend = fijo.map((x, i) => x ? -1 : i).filter(i => i >= 0);
@@ -524,7 +532,7 @@ function queNecesitas(r0, J) {
 }
 /* El boleto que propuso la app para una jornada, escrutado con los resultados oficiales o, si aún no hay, con los del directo */
 function escrutinioApp(J) {
-  if (!J || !J.partidos) return null;
+  if (!J || !J.partidos || !conPronostico(J)) return null;
   const L = J.resultados ? null : S.live[J.jornada];
   const resultados = J.resultados || (L ? L.items.map(x => (x && x.signo) || "") : null);
   if (!resultados || !resultados.some(Boolean)) return null;
@@ -563,6 +571,11 @@ function pronosticoActual(t) {
   const J = S.jornadas[jn] || S.jornadas[t.jornada] || S.jornadas[Math.max(0, ...Object.keys(S.jornadas).map(Number))];
   return J ? [tarjetaPronostico(J)] : [];
 }
+/* Una jornada puede tener ya los partidos pero aún no el pronóstico (sale dos días después de acabar la anterior) */
+const conPronostico = J => !!J && J.pronostico !== false && J.partidos.every(p => p.p1 != null && p.sugerido);
+/* La jornada siguiente se enseña cuando la anterior ya está sellada (no en borrador) */
+const anteriorSellada = t => !t.abiertas.some(r => r.estado === "borrador");
+function jornadaSiguiente(t) { return t.jornada && anteriorSellada(t) ? S.jornadas[t.jornada] || null : null; }
 function proximaCalendario(t) {
   if (t.fin) return [h("section", { class: "card stack" }, h("h2", null, "Temporada terminada"), h("p", { class: "muted" }, "No quedan jornadas en el calendario de la peña."))];
   const key = "cal" + t.jornada;
@@ -570,14 +583,18 @@ function proximaCalendario(t) {
   const nf = S.newForm;
   const meToca = puedoEscribir(t.next);
   const sig = S.cal.filter(c => c.jornada > t.jornada).slice(0, 3);
+  const JS = jornadaSiguiente(t);
   return [h("section", { class: "card stack p-" + t.next },
     h("div", { class: "turn" }, h("div", { class: "big" }, pname(t.next)[0]),
       h("div", null, h("div", { class: "label" }, `Próxima quiniela · Jornada ${t.jornada} · ${fdate(t.fecha)}`), h("h2", null, t.next === S.yo ? "Te toca a ti" : `Le toca a ${pname(t.next)}`),
         h("div", { class: "muted small" }, "Turnos según el calendario de la peña. ", sig.length ? "Después: " + sig.map(c => `J${c.jornada} ${pname(c.jugador)}`).join(" · ") + "." : ""))),
     meToca ? h("div", { class: "stack" },
-      h("p", { class: "muted small" }, S.jornadas[t.jornada] ? "El boleto empieza con el pronóstico ya marcado; cambia lo que quieras." : "El pronóstico de esta jornada aún no está cargado; puedes empezar el boleto a mano o esperar a que salga."),
-      h("div", { class: "row" }, h("button", { class: "btn go", onclick: crearQuiniela }, "Empezar quiniela")))
-      : h("p", { class: "muted" }, `Cuando ${pname(t.next)} la rellene, la verás aquí. Mientras tanto puedes mirar el pronóstico.`))];
+      !anteriorSellada(t) ? h("p", { class: "muted small" }, `Verás los partidos de tu jornada en cuanto ${pname((t.abiertas.find(r => r.estado === "borrador") || {}).jugador)} selle la suya.`)
+        : h("p", { class: "muted small" }, conPronostico(JS) ? "El boleto empieza con el pronóstico ya marcado; cambia lo que quieras."
+          : JS ? `Los partidos ya están. El pronóstico saldrá ${JS.pronosticoDesde ? "el " + fdate(JS.pronosticoDesde) : "dos días después de que acabe la jornada anterior"}; puedes empezar el boleto a mano o esperarlo.`
+          : "Los partidos de esta jornada aún no están publicados por Loterías; aparecerán aquí en cuanto salgan."),
+      anteriorSellada(t) ? h("div", { class: "row" }, h("button", { class: "btn go", onclick: crearQuiniela }, "Empezar quiniela")) : null)
+      : h("p", { class: "muted" }, `Cuando ${pname(t.next)} la rellene, la verás aquí.`))];
 }
 
 /* ---------- valor: signos que la gente apuesta mucho menos de lo que creemos probable ---------- */
@@ -598,6 +615,11 @@ function valorJornada(J) {
   return c.sort((a, b) => b.r - a.r).slice(0, 3);
 }
 function tarjetaPronostico(J) {
+  if (!conPronostico(J)) return h("section", { class: "card stack" },
+    h("div", { class: "stack", style: "gap:2px" },
+      h("span", { class: "label" }, `Jornada ${J.jornada}` + (J.jornadaOficial ? ` · nº ${J.jornadaOficial} de Loterías` : "") + (J.cierre ? ` · cierra ${fhora(J.cierre)}` : "")),
+      h("h2", null, "Pronóstico")),
+    h("p", { class: "muted" }, `El pronóstico de la app saldrá ${J.pronosticoDesde ? "el " + fdate(J.pronosticoDesde) : "dos días después de que acabe la jornada anterior"} y se actualizará cada día hasta el cierre. Mientras tanto ya puedes ver los partidos y tocar cada uno para ver cómo llegan los equipos.`));
   const conf = { alta: "fijo seguro", media: "favorito", baja: "abierto" };
   const res = J.resultados || [];
   const L = J.resultados ? null : S.live[J.jornada];
@@ -647,8 +669,8 @@ function crearQuiniela() {
   const J = S.jornadas[j];
   const row = {
     temporada: TEMP, jornada: j, fecha: nf.fecha || (J && J.fecha) || "", jugador: nf.jugador, coste: COSTE, estado: "borrador",
-    partidos: J ? J.partidos.map(p => ({ local: p.local, visitante: p.visitante, signos: p.sugerido })) : Array.from({ length: NPART }, () => ({ local: "", visitante: "", signos: "" })),
-    pleno: J ? { local: J.pleno.local, visitante: J.pleno.visitante, l: J.pleno.l, v: J.pleno.v } : { local: "", visitante: "", l: "", v: "" },
+    partidos: J ? J.partidos.map(p => ({ local: p.local, visitante: p.visitante, signos: p.sugerido || "" })) : Array.from({ length: NPART }, () => ({ local: "", visitante: "", signos: "" })),
+    pleno: J ? { local: J.pleno.local, visitante: J.pleno.visitante, l: J.pleno.l || "", v: J.pleno.v || "" } : { local: "", visitante: "", l: "", v: "" },
     resultados: Array(NPART).fill(""), pleno_res: { l: "", v: "" }, aciertos: null, premio: null, cambios: [], nota: null
   };
   abrirQuiniela(row, true);
@@ -799,7 +821,7 @@ function pintarModal() {
           h("input", { id: `l${i}`, placeholder: "Local", value: p.local, "aria-label": `Local partido ${i + 1}`, oninput: ev => p.local = ev.target.value }),
           h("input", { id: `v${i}`, placeholder: "Visitante", value: p.visitante, "aria-label": `Visitante partido ${i + 1}`, oninput: ev => p.visitante = ev.target.value }))
           : [h("span", null, p.local || "—"), h("span", null, p.visitante || "—")],
-          editBoleto && jp ? h("span", { class: "ai" }, `Pronóstico ${jp.sugerido} · ${jp.p1}/${jp.pX}/${jp.p2}`) : null),
+          editBoleto && jp && jp.p1 != null ? h("span", { class: "ai" }, `Pronóstico ${jp.sugerido} · ${jp.p1}/${jp.pX}/${jp.p2}`) : null),
         h("div", { class: "b-signs" },
           SIGNS.map(x => h("button", {
             class: "box" + (s.includes(x) ? " on" : "") + (r === x && s.includes(x) ? " hit" : ""), disabled: !editBoleto, "aria-pressed": s.includes(x) ? "true" : "false", "aria-label": `Signo ${x} partido ${i + 1}`,
@@ -1339,7 +1361,8 @@ function pintarFicha() {
     h("div", { class: "fi-eq" }, h("b", null, p.visitante)),
     h("div", { class: "fi-est" + (ev && ev.estado === "in" ? " vivo" : "") }, estado)));
   // nuestro pronóstico
-  if (!pleno) body.push(h("p", { class: "small" }, h("b", null, "Pronóstico de la app: "), `1 ${p.p1} % · X ${p.pX} % · 2 ${p.p2} % · boleto ${p.sugerido}.`,
+  if (!conPronostico(J)) body.push(h("p", { class: "small muted" }, "El pronóstico de la app para este partido aún no ha salido."));
+  else if (!pleno) body.push(h("p", { class: "small" }, h("b", null, "Pronóstico de la app: "), `1 ${p.p1} % · X ${p.pX} % · 2 ${p.p2} % · boleto ${p.sugerido}.`,
     p.publico ? ` La gente: ${p.publico}.` : "", p.nota ? h("span", { class: "muted" }, " " + p.nota) : null));
   else body.push(h("p", { class: "small" }, h("b", null, "Pronóstico de la app: "), `${p.l}-${p.v}.`, p.nota ? h("span", { class: "muted" }, " " + p.nota) : null));
   if (f.err && !ev) body.push(h("p", { class: "muted small" }, f.err === "no encontrado" ? "Este partido no aparece todavía en la fuente de datos (ESPN). Prueba más cerca de la hora del partido." : "No se pudieron cargar los datos del partido. Comprueba la conexión."));

@@ -40,6 +40,10 @@ Cada `data/<id>.json` tiene:
   - `confianza`: `alta` | `media` | `baja`
 - `pleno`: `{local, visitante, hora, l, v, nota}` con `l`/`v` en `0`, `1`, `2` o `M`
 - `resumen`, `fuentes` (URLs), `generado`
+- `pronostico`: `false` mientras la jornada solo tiene los partidos (p1/pX/p2, sugerido, confianza, nota y los goles del pleno a `null`);
+  `pronosticoDesde`: día desde el que sale el pronóstico (dos días después de acabar la jornada anterior de la peña).
+  La tarea programada de Claude (diaria, 7:41) carga los partidos en cuanto Loterías publica el boleto y hace y actualiza
+  el pronóstico cada día desde `pronosticoDesde` hasta el día del cierre.
 - `estimacion` (opcional, para la estimación de premios): `{recaudacion, bote, precioApuesta, porcentajes: [{"1","X","2"} ×14], plenoPct: {local: {"0","1","2","M"}, visitante: {...}}, definitiva, fuentes, actualizado}`.
   Lo rellena `scripts/estimacion.py` (GitHub Actions, domingos) con los datos de la página de estimación de Eduardo Losilla.
   Porcentajes en % de lo apostado por el público (LAE). Sin porcentajes, la app usa sus probabilidades y lo marca como aproximado.

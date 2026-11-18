@@ -14,11 +14,19 @@ for e in idx.get("jornadas", []):
     if not p.exists(): err("jornadas.json", f"falta el archivo {f}"); continue
     try: d = json.loads(p.read_text(encoding="utf-8"))
     except Exception as ex: err(f, f"JSON no válido ({ex})"); continue
-    for k in ("temporada", "jornada", "fecha", "partidos", "pleno", "resumen"):
+    for k in ("temporada", "jornada", "fecha", "partidos", "pleno") + (() if d.get("pronostico") is False else ("resumen",)):
         if k not in d: err(f, f"falta el campo {k}")
     if d.get("jornada") != e.get("jornada"): err(f, "el número de jornada no coincide con jornadas.json")
     ps = d.get("partidos") or []
     if len(ps) != 14: err(f, f"tiene {len(ps)} partidos y deben ser 14")
+    if d.get("pronostico") is False:   # partidos publicados, pronóstico todavía no
+        for i, pt in enumerate(ps, 1):
+            for k in ("local", "visitante", "hora"):
+                if not pt.get(k): err(f, f"partido {i}: falta {k}")
+        pl = d.get("pleno") or {}
+        if not pl.get("local") or not pl.get("visitante") or not pl.get("hora"): err(f, "pleno: faltan equipos u hora")
+        if d.get("resultados") is not None: err(f, "una jornada sin pronóstico no puede tener resultados")
+        continue
     dobles = 0
     for i, pt in enumerate(ps, 1):
         for k in ("local", "visitante", "hora", "p1", "pX", "p2", "sugerido", "confianza", "nota"):
