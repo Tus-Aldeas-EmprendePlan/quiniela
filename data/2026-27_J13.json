@@ -14,7 +14,7 @@
    "p1": 43,
    "pX": 30,
    "p2": 27,
-   "publico": null,
+   "publico": "1 43% · X 37% · 2 20%",
    "nota": "Los dos llegan flojos: el Alavés lleva cinco jornadas sin ganar y el Depor empata mucho. Ligero favorito el Alavés en casa, pero el empate está muy vivo.",
    "sugerido": "1X",
    "confianza": "baja"
@@ -26,7 +26,7 @@
    "p1": 49,
    "pX": 27,
    "p2": 24,
-   "publico": null,
+   "publico": "1 41% · X 30% · 2 29%",
    "nota": "El Valencia está en descenso y apenas marca (8 goles en 12 jornadas). El Rayo es favorito en Vallecas.",
    "sugerido": "1X",
    "confianza": "media"
@@ -38,7 +38,7 @@
    "p1": 81,
    "pX": 12,
    "p2": 7,
-   "publico": null,
+   "publico": "1 94% · X 4% · 2 2%",
    "nota": "El Madrid encadena seis victorias seguidas y el Celta aún no ha ganado fuera en Liga. Fijo claro.",
    "sugerido": "1",
    "confianza": "alta"
@@ -50,7 +50,7 @@
    "p1": 81,
    "pX": 11,
    "p2": 8,
-   "publico": null,
+   "publico": "1 84% · X 9% · 2 7%",
    "nota": "El Barça arrasa en casa (24 goles en seis partidos) y el Villarreal viene de encajar seis con el PSG. Fijo claro.",
    "sugerido": "1",
    "confianza": "alta"
@@ -62,7 +62,7 @@
    "p1": 29,
    "pX": 24,
    "p2": 47,
-   "publico": null,
+   "publico": "1 17% · X 26% · 2 57%",
    "nota": "La Real llega en buena racha y el Racing es el equipo más goleado de la Liga. Favorita la Real, aunque el Racing en casa puede dar guerra.",
    "sugerido": "12",
    "confianza": "baja"
@@ -74,7 +74,7 @@
    "p1": 53,
    "pX": 26,
    "p2": 21,
-   "publico": null,
+   "publico": "1 65% · X 21% · 2 14%",
    "nota": "El Málaga es colista y no ha ganado en doce jornadas. Osasuna necesita los puntos y es favorito.",
    "sugerido": "1X",
    "confianza": "media"
@@ -86,7 +86,7 @@
    "p1": 16,
    "pX": 25,
    "p2": 59,
-   "publico": null,
+   "publico": "1 6% · X 16% · 2 78%",
    "nota": "El Atlético viene de perder dos partidos seguidos, pero fuera suele ganar. El Getafe se cierra bien atrás: el empate es la sorpresa posible.",
    "sugerido": "2",
    "confianza": "media"
@@ -98,7 +98,7 @@
    "p1": 27,
    "pX": 34,
    "p2": 39,
-   "publico": null,
+   "publico": "1 25% · X 35% · 2 40%",
    "nota": "Segunda: los dos llevan cinco partidos sin perder y empatan mucho. Partido muy igualado, con pocos datos de cuotas.",
    "sugerido": "X2",
    "confianza": "baja"
@@ -110,7 +110,7 @@
    "p1": 47,
    "pX": 29,
    "p2": 24,
-   "publico": null,
+   "publico": "1 52% · X 31% · 2 17%",
    "nota": "Segunda: el Sporting es algo favorito en El Molinón, pero va irregular en casa y Las Palmas gana a menudo fuera.",
    "sugerido": "1X",
    "confianza": "baja"
@@ -122,7 +122,7 @@
    "p1": 54,
    "pX": 26,
    "p2": 20,
-   "publico": null,
+   "publico": "1 60% · X 26% · 2 14%",
    "nota": "Segunda: duelo directo por la promoción, los dos con 24 puntos. El Girona es favorito en casa.",
    "sugerido": "1",
    "confianza": "media"
@@ -134,7 +134,7 @@
    "p1": 11,
    "pX": 17,
    "p2": 72,
-   "publico": null,
+   "publico": "1 4% · X 12% · 2 84%",
    "nota": "Liga F: el Eibar suma tres derrotas seguidas y el Atlético lleva cinco partidos sin perder. Pocos datos de cuotas.",
    "sugerido": "2",
    "confianza": "alta"
@@ -146,7 +146,7 @@
    "p1": 9,
    "pX": 14,
    "p2": 77,
-   "publico": null,
+   "publico": "1 2% · X 5% · 2 93%",
    "nota": "Liga F: el Granada marca muy poco (9 goles en 11 jornadas) y el Madrid es muy superior. Pocos datos de cuotas.",
    "sugerido": "2",
    "confianza": "alta"
@@ -158,7 +158,7 @@
    "p1": 64,
    "pX": 21,
    "p2": 15,
-   "publico": null,
+   "publico": "1 65% · X 24% · 2 11%",
    "nota": "Liga F: la Real es favorita en casa aunque viene de perder 1-4 con el Athletic; el Sevilla apenas gana. Pocos datos de cuotas.",
    "sugerido": "1",
    "confianza": "alta"
@@ -170,7 +170,7 @@
    "p1": 44,
    "pX": 29,
    "p2": 27,
-   "publico": null,
+   "publico": "1 60% · X 22% · 2 18%",
    "nota": "Liga F: el Tenerife ha ganado cuatro de sus últimos cinco y el Madrid CFF suma dos derrotas seguidas. Partido abierto, pocos datos de cuotas.",
    "sugerido": "1X",
    "confianza": "baja"
@@ -193,7 +193,7 @@
   "https://www.winga.es/mejores-cuotas/futbol/la-liga/",
   "https://apuestasonline.net/pronosticos/sevilla-betis-211126/"
  ],
- "generado": "2026-11-18",
+ "generado": "2026-11-19",
  "id": "2026-27_J13",
  "resultados": null,
  "plenoRes": null,
