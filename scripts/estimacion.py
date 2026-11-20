@@ -68,12 +68,14 @@ def actualizar_publico(idx, ahora):
             print(f"{p.name}: no se pudieron leer los porcentajes del público ({ex!r})"); continue
         if str(prob.get("numJornada")) != str(d["jornadaOficial"]):
             print(f"{p.name}: Losilla aún no tiene porcentajes de la jornada {d['jornadaOficial']}"); continue
-        filas = {int(x["numero"]): x for x in ((prob.get("partidos") or {}).get("lae") or [])}
-        if not all(i in filas for i in range(1, 15)):
-            print(f"{p.name}: porcentajes del público incompletos"); continue
-        for i, part in enumerate(d["partidos"], 1):
-            f = filas[i]
-            part["publico"] = f"1 {int(f['porc_1'])}% · X {int(f['porc_X'])}% · 2 {int(f['porc_2'])}%"
+        try:
+            filas = {int(x["numero"]): x for x in ((prob.get("partidos") or {}).get("lae") or []) if x.get("numero") is not None}
+            textos = [f"1 {int(filas[i]['porc_1'])}% · X {int(filas[i]['porc_X'])}% · 2 {int(filas[i]['porc_2'])}%" for i in range(1, 15)]
+        except (KeyError, TypeError, ValueError):
+            # todavía sin porcentajes (por ejemplo, una jornada recién publicada): se intentará en la próxima pasada
+            print(f"{p.name}: porcentajes del público aún no disponibles o incompletos"); continue
+        for part, txt in zip(d["partidos"], textos):
+            part["publico"] = txt
         d["publicoActualizado"] = datetime.datetime.now(MADRID).strftime("%Y-%m-%dT%H:%M")
         p.write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
         print(f"{p.name}: porcentajes del público actualizados")
@@ -89,11 +91,17 @@ def main(html=None):
         if (d.get("estimacion") or {}).get("definitiva"): continue
         pendientes.append((p, d))
     if html is None:
-        actualizar_publico(idx, ahora)
-    if html is None:
-        req = urllib.request.Request(URL, headers={"User-Agent": "Mozilla/5.0 (compatible; quiniela-pena/1.0)", "Accept-Language": "es-ES"})
-        html = urllib.request.urlopen(req, timeout=30).read().decode("utf-8", "replace")
-    estado = leer_estado(html)
+        try: actualizar_publico(idx, ahora)
+        except Exception as ex: print(f"::warning::Porcentajes del público: {ex!r}")
+    try:
+        if html is None:
+            req = urllib.request.Request(URL, headers={"User-Agent": "Mozilla/5.0 (compatible; quiniela-pena/1.0)", "Accept-Language": "es-ES"})
+            html = urllib.request.urlopen(req, timeout=30).read().decode("utf-8", "replace")
+        estado = leer_estado(html)
+    except Exception as ex:
+        if not pendientes:   # antes del cierre no hace falta la página de estimación: no es un fallo
+            print(f"::warning::Página de estimación de Losilla no disponible ahora ({ex!r}); no había nada pendiente."); return 0
+        print(f"::error::No se pudo leer la página de estimación de Losilla: {ex!r}"); return 1
     vivas = sorted(k for k in estado if k.startswith("jornada_"))
     print("Página de Losilla leída correctamente. Jornadas con datos:", ", ".join(vivas) or "ninguna")
     if not pendientes: print("Nada que actualizar."); return 0
