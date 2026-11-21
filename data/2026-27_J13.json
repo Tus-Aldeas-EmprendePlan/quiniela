@@ -87,7 +87,7 @@
    "pX": 25,
    "p2": 59,
    "publico": "1 8% · X 16% · 2 76%",
-   "nota": "El Atlético viene de perder dos partidos seguidos, pero fuera suele ganar. El Getafe se cierra bien atrás: el empate es la sorpresa posible.",
+   "nota": "El Atlético viene de perder dos partidos seguidos, pero fuera suele ganar. El Getafe, sin Gudelj ni Uche, se cierra bien atrás: el empate es la sorpresa posible.",
    "sugerido": "2",
    "confianza": "media"
   },
@@ -99,7 +99,7 @@
    "pX": 34,
    "p2": 39,
    "publico": "1 28% · X 36% · 2 36%",
-   "nota": "Segunda: los dos llevan cinco partidos sin perder y empatan mucho. Partido muy igualado, con pocos datos de cuotas.",
+   "nota": "Segunda: el Mallorca lleva siete partidos sin perder y encaja muy poco; el Tenerife empata mucho en casa. Partido muy igualado, se esperan pocos goles.",
    "sugerido": "X2",
    "confianza": "baja"
   },
@@ -182,7 +182,7 @@
   "hora": "2026-11-21 18:30",
   "l": "1",
   "v": "1",
-  "nota": "Derbi sevillano: el Betis es 4º con 26 puntos y el Sevilla 6º con 18. Las casas dan algo favorito al Betis, pero en los derbis suele haber goles de los dos; el 1-1 es el marcador más probable y la gente apuesta más por la victoria bética."
+  "nota": "Derbi sevillano: el Betis es 4º con 26 puntos y el Sevilla 6º con 18, y llega sin Alfon, Carmona ni Miguel Sierra; al Betis le falta Ceballos. En los derbis suele haber goles de los dos: el 1-1 es el marcador más probable."
  },
  "resumen": "7 fijos y 7 dobles, colocados donde el segundo signo aporta más probabilidad. Probabilidad estimada de que los 14 resultados caigan dentro del boleto: 1,00 %.",
  "fuentes": [
@@ -192,9 +192,11 @@
   "https://pronosticosfiablesquiniela.es/pronosticos/",
   "https://www.winga.es/mejores-cuotas/futbol/la-liga/",
   "https://apuestasonline.net/pronosticos/sevilla-betis-211126/",
-  "https://www.comuniate.com/noticias/38939/alineaciones-probables-de-la-jornada-13-de-laliga"
+  "https://www.comuniate.com/noticias/38939/alineaciones-probables-de-la-jornada-13-de-laliga",
+  "https://www.comuniate.com/noticias/38939/alineaciones-probables-actualizadas-de-la-jornada-13-de-laliga",
+  "https://footballpredictions.com/footballpredictions/segunda-division-predictions/cd-tenerife-vs-mallorca-prediction-21-11-2026/"
  ],
- "generado": "2026-11-20",
+ "generado": "2026-11-21",
  "id": "2026-27_J13",
  "resultados": null,
  "plenoRes": null,
