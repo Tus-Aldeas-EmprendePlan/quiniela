@@ -781,7 +781,8 @@ function pintarModal() {
   const prevScroll = root.querySelector(".ov")?.scrollTop || 0;
   const d = M.draft; const ed = puedoEscribir(d.jugador);
   const J = S.jornadas[d.jornada];
-  const editBoleto = ed && d.estado === "borrador" && !!d.partidos;
+  const corrigiendo = !!(M.corrigiendo && soyAdmin() && d.partidos && d.estado !== "borrador");
+  const editBoleto = (ed && d.estado === "borrador" && !!d.partidos) || corrigiendo;
   const vista = d.partidos && d.estado !== "borrador" ? conDirecto(d) : { r: d, enDirecto: false };
   // Los resultados solo se tocan a mano si no hay datos oficiales ni marcadores en directo
   const editRes = ed && d.estado !== "borrador" && !!d.partidos && !(J && J.resultados) && !vista.enDirecto;
@@ -793,8 +794,11 @@ function pintarModal() {
 
   const body = h("div", { class: "m-body" });
   if (d.nota) body.append(h("div", { class: "note" }, d.nota));
-  if (!ed) body.append(h("p", { class: "muted small" }, `Solo ${pname(d.jugador)} puede modificar esta quiniela.`));
+  if (corrigiendo) body.append(h("div", { class: "note" }, h("b", null, "Corrigiendo un boleto sellado. "), "Pon los signos exactamente como en el boleto validado (con la foto delante) y escribe el motivo abajo. El cambio quedará registrado y lo verán todos."));
+  else if (!ed) body.append(h("p", { class: "muted small" }, `Solo ${pname(d.jugador)} puede modificar esta quiniela.`));
   else if (d.partidos && d.estado !== "borrador") body.append(h("p", { class: "muted small" }, "Boleto sellado: los signos ya no se pueden cambiar ni se puede borrar la quiniela."));
+  if (!corrigiendo && soyAdmin() && !M.nueva && d.partidos && d.estado !== "borrador" && !DEMO)
+    body.append(h("div", null, h("button", { class: "link small", onclick: () => { M.corrigiendo = true; M.antes = textoBoleto(M.row); M.err = null; pintarModal(); } }, "¿Se pasó mal a la app? Corregir el boleto sellado (solo administradora)")));
 
   if (d.partidos) {
     if (editBoleto) {
@@ -865,9 +869,16 @@ function pintarModal() {
       h("div", { class: "log", style: "margin-top:6px" }, d.cambios.slice().reverse().map(c => h("div", null,
         `${new Date(c.en).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" })} · ${c.campo}: ${fmtVal(c.campo, c.de)} → ${fmtVal(c.campo, c.a)}${c.auto ? " (automático)" : ""}`)))));
   }
+  if (corrigiendo) body.append(h("label", null, h("span", { class: "label" }, "Motivo de la corrección"),
+    h("input", { id: "m-motivo", value: M.motivo || "", placeholder: "Ej.: se pasó mal a la app; el boleto validado lleva X2 en el 1", oninput: ev => M.motivo = ev.target.value })));
   if (M.err) body.append(h("div", { class: "err" }, M.err));
 
   const foot = h("div", { class: "m-foot" });
+  if (corrigiendo) {
+    foot.append(h("span", { style: "flex:1" }),
+      h("button", { class: "btn alt", onclick: () => { M.corrigiendo = false; M.draft = clone(M.row); M.err = null; pintarModal(); } }, "Cancelar corrección"),
+      h("button", { class: "btn go", disabled: M.busy, onclick: guardarCorreccion }, "Guardar corrección"));
+  } else {
   if (ed && !M.nueva && (d.estado === "borrador" || !d.partidos)) foot.append(M.confirmDel ? h("button", { class: "btn danger", onclick: borrar }, "Sí, eliminarla") : h("button", { class: "btn danger", onclick: () => { M.confirmDel = true; pintarModal(); } }, "Eliminar"));
   foot.append(h("span", { style: "flex:1" }));
   foot.append(h("button", { class: "btn alt", onclick: cerrarModal }, ed ? "Cancelar" : "Cerrar"));
@@ -878,6 +889,7 @@ function pintarModal() {
     }
     if (d.estado !== "borrador" || !d.partidos) foot.append(h("button", { class: "btn go", disabled: M.busy, onclick: () => guardar() }, "Guardar"));
   }
+  }
   const modal = h("div", { class: "modal", role: "dialog", "aria-modal": "true", "aria-label": `Jornada ${d.jornada}` },
     h("div", { class: "m-head" },
       h("div", { class: "stack", style: "gap:4px" }, h("div", { class: "label" }, M.nueva ? "Nueva quiniela" : "Quiniela"), h("h2", null, `Jornada ${d.jornada}`)),
@@ -885,6 +897,25 @@ function pintarModal() {
     body, foot);
   const ov = h("div", { class: "ov", onclick: ev => { if (ev.target === ov) cerrarModal(); } }, modal);
   root.replaceChildren(ov); ov.scrollTop = prevScroll; document.body.style.overflow = "hidden";
+}
+/* Corrección de un boleto sellado por la administradora (requiere supabase/correccion_admin.sql) */
+function textoBoleto(r) { return (r.partidos || []).map((p, i) => `${i + 1}:${normSigns(p.signos) || "·"}`).join(" ") + (r.pleno ? ` · P15 ${r.pleno.l || "?"}-${r.pleno.v || "?"}` : ""); }
+async function guardarCorreccion() {
+  const d = M.draft;
+  const err = validarBoleto(d); if (err) { M.err = err; pintarModal(); return; }
+  if (!(M.motivo || "").trim()) { M.err = "Escribe el motivo de la corrección."; pintarModal(); return; }
+  const despues = textoBoleto(d);
+  if (despues === M.antes) { M.err = "No has cambiado ningún signo."; pintarModal(); return; }
+  const en = new Date().toISOString();
+  d.cambios = [...(d.cambios || []), { en, campo: "corrección del boleto (" + pname(S.yo) + ")", de: M.antes, a: despues + " — " + M.motivo.trim() }].slice(-40);
+  const J = S.jornadas[d.jornada];
+  if (J && J.resultados && J.resultados.filter(Boolean).length === NPART) {   // ya escrutada: se recalcula
+    d.resultados = J.resultados.slice(); if (J.plenoRes) d.pleno_res = { ...J.plenoRes };
+    const e = escrutar(d); if (e) { d.aciertos = aciertosPena(d, e); if (J.premios) d.premio = calcPremio(e, J.premios); }
+  }
+  M.busy = true; pintarModal();
+  try { await API.guardar(d); M.corrigiendo = false; cerrarModal(); toast(`Boleto de la jornada ${d.jornada} corregido`); await recargar(); render(); }
+  catch (e) { M.busy = false; M.err = /sellada|policy|permission|row-level/i.test((e && e.message) || "") ? "La base de datos no deja corregirlo todavía: hay que ejecutar una vez supabase/correccion_admin.sql en Supabase." : "No se pudo guardar. Comprueba la conexión."; pintarModal(); }
 }
 function fmtVal(c, v) { if (v == null || v === "") return "—"; if (c === "premio") return eur(v); if (c === "fecha") return fdate(v); return v; }
 function tablaColumnas(d, e) {
